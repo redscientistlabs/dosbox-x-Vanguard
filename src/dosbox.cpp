@@ -4569,7 +4569,7 @@ std::string compress(const std::string& input) { //throw (SaveState::Error)
 	uLongf actualSize = bufferSize;
     //RTC_Hijack: no compress plz
 	if (::compress2(reinterpret_cast<Bytef*>(&output[0]), &actualSize,
-					reinterpret_cast<const Bytef*>(input.c_str()), (uLong)input.size(), Z_NO_COMPRESSION) != Z_OK)
+					reinterpret_cast<const Bytef*>(input.c_str()), (uLong)input.size(), Z_BEST_SPEED) != Z_OK)
 		throw SaveState::Error("Compression failed!");
     //RTC_Hijack end
 	output.resize(actualSize);

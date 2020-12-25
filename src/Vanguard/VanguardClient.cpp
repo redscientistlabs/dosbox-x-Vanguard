@@ -124,10 +124,10 @@ getDefaultPartial() {
     partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, false);
     partial->Set(VSPEC::SUPPORTS_KILLSWITCH, false);
     partial->Set(VSPEC::SUPPORTS_REALTIME, true);
-    partial->Set(VSPEC::SUPPORTS_SAVESTATES, false);
-    partial->Set(VSPEC::SUPPORTS_REFERENCES, false);
+    partial->Set(VSPEC::SUPPORTS_SAVESTATES, true);
+    partial->Set(VSPEC::SUPPORTS_REFERENCES, true);
     //partial->Set(VSPEC::REPLACE_MANUALBLAST_WITH_GHCORRUPT, true);
-    partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, false);
+    partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, true);
     partial->Set(VSPEC::CONFIG_PATHS, VanguardClient::configPaths);
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::GAMENAME, String::Empty);
@@ -135,7 +135,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
-    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"Vga"});
+    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"VRAM"});
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     partial->Set(VSPEC::EMUDIR, VanguardClient::emuDir);
@@ -334,7 +334,7 @@ public:
 };
 
 //public
-//ref class Vga : RTCV::CorruptCore::IMemoryDomain {
+//ref class VRAM : RTCV::CorruptCore::IMemoryDomain {
 //public:
 //    property System::String^ Name { virtual System::String^ get(); }
 //    property long long Size { virtual long long get(); }
@@ -460,32 +460,32 @@ array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
     return bytes;
 }
 #pragma endregion
-//#pragma region Vga
-//String^ Vga::Name::get() {
-//    return "Vga";
+//#pragma region VRAM
+//String^ VRAM::Name::get() {
+//    return "VRAM";
 //}
 //
-//long long Vga::Size::get() {
+//long long VRAM::Size::get() {
 //    return vga.mem.memsize;
 //}
 //
-//int Vga::WordSize::get() {
+//int VRAM::WordSize::get() {
 //    return WORD_SIZE;
 //}
 //
-//bool Vga::BigEndian::get() {
+//bool VRAM::BigEndian::get() {
 //    return BIG_ENDIAN;
 //}
 //
-//unsigned char Vga::PeekByte(long long addr) {
+//unsigned char VRAM::PeekByte(long long addr) {
 //    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, NULL); //vga is nothing until we figure out how to expose vga :(
 //}
 //
-//void Vga::PokeByte(long long addr, unsigned char val) {
+//void VRAM::PokeByte(long long addr, unsigned char val) {
 //    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, NULL);
 //}
 //
-//array<unsigned char>^ Vga::PeekBytes(long long address, int length) {
+//array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
 //    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
 //    for(int i = 0; i < length; i++) {
 //        bytes[i] = PeekByte(address + i);
@@ -567,7 +567,7 @@ static array<MemoryDomainProxy^>^ GetInterfaces() {
         return gcnew array<MemoryDomainProxy^>(0);
     array<MemoryDomainProxy^>^ interfaces = gcnew array<MemoryDomainProxy^>(1);
     interfaces[0] = (gcnew MemoryDomainProxy(gcnew RAM));
-    //interfaces[1] = (gcnew MemoryDomainProxy(gcnew Vga));
+    //interfaces[1] = (gcnew MemoryDomainProxy(gcnew VRAM));
     return interfaces;
 }
 
@@ -640,6 +640,7 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
     RtcClock::ResetCount();
 
     String^ gameName = Helpers::utf8StringToSystemString(romPath);
+    LOG_MSG("Loaded %s", gameName);
     AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, gameName, true, true);
 }
 

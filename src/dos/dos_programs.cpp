@@ -98,6 +98,7 @@ void runBoot(const char *str), runMount(const char *str), runImgmount(const char
 #include <unixlib/local.h>
 #include <limits.h>
 #endif
+#include <src/Vanguard/VanguardClient.h>
 
 #if C_DEBUG
 Bitu DEBUG_EnableDebugger(void);
@@ -549,6 +550,8 @@ void MenuBrowseImageFile(char drive, bool arc, bool boot, bool multiple) {
 			tinyfd_messageBox("Information",(std::string(arc?"Mounted archive":"Mounted disk image")+" to Drive "+std::string(1,drive)+":\n"+std::string(lTheOpenFileName)+(arc||mountiro[drive-'A']?"\n(Read-only mode)":"")).c_str(),"ok","info", 1);
 		}
 	}
+    std::string ss(lTheOpenFileName);
+    VanguardClientUnmanaged::LOAD_GAME_START(ss);
 	chdir( Temp_CurrentDir );
 #endif
 }
