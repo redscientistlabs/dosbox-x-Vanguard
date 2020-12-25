@@ -314,6 +314,7 @@ unsigned long long update_clockdom_from_now(ClockDomain &dst) {
 }
 
 #include "paging.h"
+#include <src/Vanguard/UnmanagedWrapper.h>
 
 extern std::string savefilename;
 extern bool use_save_file;
@@ -410,6 +411,7 @@ static Bitu Normal_Loop(void) {
                     return 0;
                 }
             }
+            UnmanagedWrapper::VANGUARD_CORESTEP();
         }
     }
     catch (const GuestPageFaultException& pf) {
@@ -5910,3 +5912,9 @@ std::string SaveState::getName(size_t slot, bool nl) const {
     else if (!nl) ret+=")";
 	return ret;
 }
+
+//#include <sdlmain.h>
+//void SetEmuThread(bool running)
+//{
+//    sdl.updating = running;
+//}

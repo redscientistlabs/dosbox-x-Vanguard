@@ -128,6 +128,7 @@ extern bool             SDLNetInited, uselfn;
 extern bool				mono_cga;
 extern bool				DEPRECATED mainline_compatible_mapping;
 extern bool				DEPRECATED mainline_compatible_bios_mapping;
+//void SetEmuThread(bool running);
 
 #ifdef __SSE__
 extern bool				sse2_available;
@@ -440,4 +441,5 @@ void readString(std::istream& stream, std::string& data)
     data.resize(stringSize);
     stream.read(&data[0], stringSize * sizeof(std::string::value_type));
 }
+
 #endif //SAVE_STATE_H_INCLUDED

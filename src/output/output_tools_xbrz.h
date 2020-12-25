@@ -9,7 +9,7 @@
 
 #if defined(WIN32) && !defined(__MINGW32__) && !defined(HX_DOS)
 #define XBRZ_PPL 1
-#include <ppl.h>
+//#include <ppl.h>
 #endif
 
 #endif /*C_XBRZ || C_SURFACE_POSTRENDER_ASPECT*/

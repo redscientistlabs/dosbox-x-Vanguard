@@ -8938,8 +8938,6 @@ bool VM_Boot_DOSBox_Kernel() {
         DispatchVMEvent(VM_EVENT_DOS_INIT_SHELL_READY); // <- we just finished loading the shell (COMMAND.COM)
 
         /* it's time to init parsing AUTOEXEC.BAT */
-        VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
-        //VanguardClientUnmanaged::LOAD_GAME_DONE;
         void AUTOEXEC_Startup(Section *sec);
         AUTOEXEC_Startup(NULL);
 
@@ -8957,6 +8955,7 @@ bool VM_Boot_DOSBox_Kernel() {
 
         DispatchVMEvent(VM_EVENT_DOS_INIT_AUTOEXEC_BAT_DONE); // <- we just finished executing AUTOEXEC.BAT
         DispatchVMEvent(VM_EVENT_DOS_INIT_AT_PROMPT); // <- now, we're at the DOS prompt
+        VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
         SHELL_Run();
     }
     return true;

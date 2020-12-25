@@ -7,6 +7,7 @@
 
 #include "VanguardClient.h"
 #include "VanguardClientInitializer.h"
+#include "ThreadLocalHelper.h"
 #include "Helpers.hpp"
 #include "mem.h"
 #include "dos_inc.h"
@@ -62,6 +63,7 @@ static void EmuThreadExecute(IntPtr ptr);
 public
 ref class VanguardClient {
 public:
+    //static ThreadLocal^ localthread;
     static NetCoreReceiver^ receiver;
     static VanguardConnector^ connector;
 
@@ -88,7 +90,6 @@ public:
     static String^ emuDir = IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location);
     static String^ logPath = IO::Path::Combine(emuDir, "EMU_LOG.txt");
 
-
     static array<String^>^ configPaths;
 
     static volatile bool loading = false;
@@ -107,10 +108,10 @@ static void EmuThreadExecute(Action^ callback) {
 }
 
 static void EmuThreadExecute(IntPtr callbackPtr) {
-    //  main_window.SetEmuThread(false);
+    //SetEmuThread(false);
     //sdl.active = false;
     static_cast<void(__stdcall*)(void)>(callbackPtr.ToPointer())();
-    // main_window.SetEmuThread(true);
+    //SetEmuThread(true);
     //sdl.active = true;
 }
 
@@ -123,10 +124,10 @@ getDefaultPartial() {
     partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, false);
     partial->Set(VSPEC::SUPPORTS_KILLSWITCH, false);
     partial->Set(VSPEC::SUPPORTS_REALTIME, true);
-    partial->Set(VSPEC::SUPPORTS_SAVESTATES, true);
-    partial->Set(VSPEC::SUPPORTS_REFERENCES, true);
+    partial->Set(VSPEC::SUPPORTS_SAVESTATES, false);
+    partial->Set(VSPEC::SUPPORTS_REFERENCES, false);
     //partial->Set(VSPEC::REPLACE_MANUALBLAST_WITH_GHCORRUPT, true);
-    partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, true);
+    partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, false);
     partial->Set(VSPEC::CONFIG_PATHS, VanguardClient::configPaths);
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::GAMENAME, String::Empty);
@@ -134,11 +135,10 @@ getDefaultPartial() {
     partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
-    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{});
+    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"Vga"});
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     partial->Set(VSPEC::EMUDIR, VanguardClient::emuDir);
-    partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     //partial->Set(VSPEC::SUPPORTS_MULTITHREAD, true);
     return partial;
 }
@@ -243,7 +243,6 @@ void VanguardClientInitializer::StartVanguardClient()
     SyncObjectSingleton::SyncObject = dummy;
     //SyncObjectSingleton::EmuInvokeDelegate = gcnew SyncObjectSingleton::ActionDelegate(&EmuThreadExecute);
     SyncObjectSingleton::UseQueue = true;
-    SyncObjectSingleton::EmuThreadIsMainThread = true;
 
     // Start everything
     VanguardClient::configPaths = gcnew array<String^>{""
@@ -323,7 +322,7 @@ void VanguardClient::SetSyncSettings(String^ ss) {
 
 //For some reason if we do these in another class, melon won't build
 public
-ref class Memory : RTCV::CorruptCore::IMemoryDomain {
+ref class RAM : RTCV::CorruptCore::IMemoryDomain {
 public:
     property System::String^ Name { virtual System::String^ get(); }
     property long long Size { virtual long long get(); }
@@ -385,22 +384,22 @@ public:
 #define BIG_ENDIAN false
 
 delegate void MessageDelegate(Object^);
-#pragma region Memory
-String^ Memory::Name::get() {/*
+#pragma region RAM
+String^ RAM::Name::get() {/*
     if(UnmanagedWrapper::IS_N3DS()) {
         return "FCRam(N3DS)";
     }
     else {
         return "FCRam";
     }*/
-    return "Memory";
+    return "RAM";
 }
 
-long long Memory::Size::get() {/*
+long long RAM::Size::get() {/*
     if(UnmanagedWrapper::IS_N3DS()) {
-        return Memory::FCRAM_N3DS_SIZE;
+        return RAM::FCRAM_N3DS_SIZE;
     }
-    return Memory::FCRAM_SIZE;*/
+    return RAM::FCRAM_SIZE;*/
     Section_prop* section = static_cast<Section_prop*>(control->GetSection("dosbox"));
     Bitu memsizekb = (Bitu)section->Get_int("memsizekb");
     Bitu memsize = (Bitu)section->Get_int("memsize");
@@ -415,16 +414,16 @@ long long Memory::Size::get() {/*
     return (memsizekb/1024 + memsize) * 1024ul * 1024ul;
 }
 
-int Memory::WordSize::get() {
+int RAM::WordSize::get() {
     return WORD_SIZE;
 }
 
-bool Memory::BigEndian::get() {
+bool RAM::BigEndian::get() {
     return BIG_ENDIAN;
 }
 
-unsigned char Memory::PeekByte(long long addr) {
-    if(addr < Memory::Size)
+unsigned char RAM::PeekByte(long long addr) {
+    if(addr < RAM::Size)
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
@@ -433,8 +432,8 @@ unsigned char Memory::PeekByte(long long addr) {
     return 0;
 }
 
-void Memory::PokeByte(long long addr, unsigned char val) {
-    if(addr < Memory::Size)
+void RAM::PokeByte(long long addr, unsigned char val) {
+    if(addr < RAM::Size)
     {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
@@ -443,7 +442,7 @@ void Memory::PokeByte(long long addr, unsigned char val) {
     }
 }
 
-array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
+array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
 
     array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
@@ -503,11 +502,11 @@ array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
 //}
 //
 //unsigned char Mixer::PeekByte(long long addr) {
-//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, Memory::Mixer_RAM_PADDR);
+//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, RAM::Mixer_RAM_PADDR);
 //}
 //
 //void Mixer::PokeByte(long long addr, unsigned char val) {
-//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, Memory::Mixer_RAM_PADDR);
+//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, RAM::Mixer_RAM_PADDR);
 //}
 //
 //array<unsigned char>^ Mixer::PeekBytes(long long address, int length) {
@@ -536,11 +535,11 @@ array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
 //}
 //
 //unsigned char CPU::PeekByte(long long addr) {
-//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, Memory::N3DS_EXTRA_RAM_PADDR);
+//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, RAM::N3DS_EXTRA_RAM_PADDR);
 //}
 //
 //void CPU::PokeByte(long long addr, unsigned char val) {
-//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, Memory::N3DS_EXTRA_RAM_PADDR);
+//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, RAM::N3DS_EXTRA_RAM_PADDR);
 //}
 //
 //array<unsigned char>^ CPU::PeekBytes(long long address, int length) {
@@ -555,19 +554,18 @@ array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
 
 static array<MemoryDomainProxy^>^ GetInterfaces() {
 
-    //if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
-    //    return gcnew array<MemoryDomainProxy^>(0);
+    if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
+        return gcnew array<MemoryDomainProxy^>(0);
     array<MemoryDomainProxy^>^ interfaces = gcnew array<MemoryDomainProxy^>(1);
-    interfaces[0] = (gcnew MemoryDomainProxy(gcnew Memory));
+    interfaces[0] = (gcnew MemoryDomainProxy(gcnew RAM));
     //interfaces[1] = (gcnew MemoryDomainProxy(gcnew Vga));
     return interfaces;
 }
 
 static bool RefreshDomains(bool updateSpecs = true) {
-    LOG_MSG("Memory Domains refreshed.");
-    array<MemoryDomainProxy^>^ oldInterfaces =
-        AllSpec::VanguardSpec->Get<array<MemoryDomainProxy^>^>(VSPEC::MEMORYDOMAINS_INTERFACES);
+    array<MemoryDomainProxy^>^ oldInterfaces = AllSpec::VanguardSpec->Get<array<MemoryDomainProxy^>^>(VSPEC::MEMORYDOMAINS_INTERFACES);
     array<MemoryDomainProxy^>^ newInterfaces = GetInterfaces();
+    LOG_MSG("RAM Domains refreshed.");
 
     // Bruteforce it since domains can c`   hange inconsistently in some configs and we keep code
     // consistent between implementations
@@ -610,7 +608,7 @@ static void STEP_CORRUPT() // errors trapped by CPU_STEP
 {
     if(!VanguardClient::enableRTC)
         return;
-    RtcClock::StepCorrupt(true, true);
+    RTCV::CorruptCore::RtcClock::StepCorrupt(true, true);
 }
 
 
@@ -621,6 +619,7 @@ void VanguardClientUnmanaged::CORE_STEP() {
     // Any step hook for corruption
     ActionDistributor::Execute("ACTION");
     STEP_CORRUPT();
+    
 }
 
 // This is on the main thread not the emu thread
@@ -685,7 +684,7 @@ void VanguardClientUnmanaged::LOAD_GAME_DONE() {
      Core::System::GetInstance().CoreTiming().ScheduleEvent(run_interval_ticks, VanguardClient::event);
      */
     VanguardClient::loading = false;
-
+    RtcCore::InvokeLoadGameDone();
 }
 
 
@@ -935,6 +934,7 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
                                  break;
 
     case REMOTE_EVENT_EMUSTARTED: {
+        //SetEmuThread(true);
         // Do nothing
     }
                                 break;

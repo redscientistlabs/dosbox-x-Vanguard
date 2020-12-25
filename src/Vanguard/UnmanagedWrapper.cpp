@@ -26,7 +26,7 @@
 bool UnmanagedWrapper::savestate_done = false;
 
 void UnmanagedWrapper::VANGUARD_EXIT() {
-    //wxGetApp().Exit();
+    System::Environment::Exit(0);
     return;
 }
 

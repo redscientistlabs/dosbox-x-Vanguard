@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <thread>
 
 //Source https://blogs.msdn.microsoft.com/jeremykuhne/2006/04/18/using-clr-and-__declspecthread/
 template <typename T>
@@ -7,7 +8,7 @@ class ThreadLocal
 
 {
 private:
-  DWORD threadLocalIndex;
+  long threadLocalIndex;
 
   ThreadLocal(ThreadLocal const&);
 
