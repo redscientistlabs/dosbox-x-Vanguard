@@ -141,7 +141,6 @@ void VanguardClient::SpecUpdated(Object^ sender, SpecUpdateEventArgs^ e) {
 
 void VanguardClient::RegisterVanguardSpec() {
     PartialSpec^ emuSpecTemplate = gcnew PartialSpec("VanguardSpec");
-
     emuSpecTemplate->Insert(getDefaultPartial());
 
     AllSpec::VanguardSpec = gcnew FullSpec(emuSpecTemplate, true);
@@ -209,6 +208,7 @@ void VanguardClientInitializer::Initialize() {
         gcnew ResolveEventHandler(CurrentDomain_AssemblyResolve);
 
     ConfigureVisualStyles();
+
     StartVanguardClient();
 }
 
@@ -389,18 +389,21 @@ bool Memory::BigEndian::get() {
 }
 
 unsigned char Memory::PeekByte(long long addr) {
+
     long offset;
     offset = addr;
     return UnmanagedWrapper::PADDR_PEEKBYTE(addr, offset);
 }
 
 void Memory::PokeByte(long long addr, unsigned char val) {
+
     long offset;
     offset = addr;
     UnmanagedWrapper::PADDR_POKEBYTE(addr, val, offset);
 }
 
 array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
+
     array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
         bytes[i] = PeekByte(address + i);
@@ -691,36 +694,35 @@ enum COMMANDS {
 };
 
 inline COMMANDS CheckCommand(String^ inString) {
-    if(inString == "LOADSAVESTATE")
+    if(inString == RTCV::NetCore::Commands::Remote::LoadState )
         return LOADSAVESTATE;
-    if(inString == "SAVESAVESTATE")
+    else if(inString == RTCV::NetCore::Commands::Remote::SaveState)
         return SAVESAVESTATE;
-    if(inString == "REMOTE_LOADROM")
+    else if(inString == RTCV::NetCore::Commands::Remote::LoadROM)
         return REMOTE_LOADROM;
-    if(inString == "REMOTE_CLOSEGAME")
+    else if(inString == RTCV::NetCore::Commands::Remote::CloseGame)
         return REMOTE_CLOSEGAME;
-    if(inString == "REMOTE_ALLSPECSSENT")
+    else if(inString == RTCV::NetCore::Commands::Remote::AllSpecSent)
         return REMOTE_ALLSPECSSENT;
-    if(inString == "REMOTE_DOMAIN_GETDOMAINS")
+    else if(inString == RTCV::NetCore::Commands::Remote::DomainGetDomains)
         return REMOTE_DOMAIN_GETDOMAINS;
-    if(inString == "REMOTE_KEY_SETSYSTEMCORE")
+    else if(inString == RTCV::NetCore::Commands::Remote::KeySetSystemCore)
         return REMOTE_KEY_SETSYSTEMCORE;
-    if(inString == "REMOTE_KEY_SETSYNCSETTINGS")
+    else if(inString == RTCV::NetCore::Commands::Remote::KeySetSyncSettings)
         return REMOTE_KEY_SETSYNCSETTINGS;
-    if(inString == "REMOTE_EVENT_EMU_MAINFORM_CLOSE")
+    else if(inString == RTCV::NetCore::Commands::Remote::EventEmuMainFormClose)
         return REMOTE_EVENT_EMU_MAINFORM_CLOSE;
-    if(inString == "REMOTE_EVENT_EMUSTARTED")
+    else if(inString == RTCV::NetCore::Commands::Remote::EventEmuStarted)
         return REMOTE_EVENT_EMUSTARTED;
-    if(inString == "REMOTE_ISNORMALADVANCE")
+    else if(inString == RTCV::NetCore::Commands::Remote::IsNormalAdvance)
         return REMOTE_ISNORMALADVANCE;
-    if(inString == "REMOTE_EVENT_CLOSEEMULATOR")
+    else if(inString == RTCV::NetCore::Commands::Remote::EventCloseEmulator)
         return REMOTE_EVENT_CLOSEEMULATOR;
-    if(inString == "REMOTE_ALLSPECSSENT")
-        return REMOTE_ALLSPECSSENT;
-    if(inString == "REMOTE_POSTCORRUPTACTION")
+    else if(inString == RTCV::NetCore::Commands::Remote::EventCloseEmulator)
         return REMOTE_POSTCORRUPTACTION;
-    if(inString == "REMOTE_RESUMEEMULATION")
+    else if(inString == RTCV::NetCore::Commands::Remote::ResumeEmulation)
         return REMOTE_RESUMEEMULATION;
+
     return UNKNOWN;
 }
 
@@ -797,7 +799,7 @@ void Quit() {
 
 void AllSpecsSent() {
     VanguardClient::LoadWindowPosition();
-    RefreshDomains();
+    VanguardClientUnmanaged::LOAD_GAME_DONE();
 }
 #pragma endregion
 
