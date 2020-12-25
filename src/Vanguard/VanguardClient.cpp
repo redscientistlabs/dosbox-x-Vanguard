@@ -13,9 +13,11 @@
 #include <cpu.h>
 #include <mixer.h>
 #include <vga.h>
+#include "control.h"
 
 #include "UnmanagedWrapper.h"
 #include "VanguardSettingsWrapper.h"
+#include <include/paging.h>
 
 //#include "core/core.h"
 #using < system.dll>
@@ -377,7 +379,18 @@ long long Memory::Size::get() {/*
         return Memory::FCRAM_N3DS_SIZE;
     }
     return Memory::FCRAM_SIZE;*/
-    return MEM_PAGESIZE;
+    Section_prop* section = static_cast<Section_prop*>(control->GetSection("dosbox"));
+    Bitu memsizekb = (Bitu)section->Get_int("memsizekb");
+    Bitu memsize = (Bitu)section->Get_int("memsize");
+
+    if(memsizekb == 0 && memsize < 1) memsize = 1;
+    else if(memsizekb != 0 && (Bits)memsize < 0) memsize = 0;
+
+    /* round up memsizekb to 4KB multiple */
+    memsizekb = (memsizekb + 3ul) & (~3ul);
+
+    /* roll memsize into memsizekb, simplify this code */
+    return (memsizekb + memsize) * 1024ul * 1024ul;
 }
 
 int Memory::WordSize::get() {
@@ -391,13 +404,13 @@ bool Memory::BigEndian::get() {
 unsigned char Memory::PeekByte(long long addr) {
     long offset;
     offset = addr;
-    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, offset);
+    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, PAGING_GetPhysicalAddress((PhysPt)addr));
 }
 
 void Memory::PokeByte(long long addr, unsigned char val) {
     long offset;
     offset = addr;
-    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, offset);
+    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, PAGING_GetPhysicalAddress((PhysPt)addr));
 }
 
 array<unsigned char>^ Memory::PeekBytes(long long address, int length) {

@@ -14,6 +14,9 @@
 #include "regs.h"
 #include "callback.h"
 #include "debug.h"
+#include "src/debug/debug_inc.h"
+#include "src/debug/disasm_tables.h"
+#include "paging.h"
 #include <src/hardware/mame/emu.h>
 //#include <src/dos/dos_execute.cpp>
 
@@ -55,6 +58,7 @@ void UnmanagedWrapper::VANGUARD_LOADSTATE(const std::string& file) {
     //}
     //Core::System::GetInstance().SendSignal(Core::System::Signal::LoadVanguard, 9);
     //SaveState::save(SaveState::SLOT_COUNT);
+    SaveState::instance().load(1);
     return;
 }
 
@@ -72,6 +76,7 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
+    SaveState::instance().save(1);
     return "";
 }
 
@@ -85,8 +90,9 @@ void UnmanagedWrapper::VANGUARD_SAVESTATE_DONE() {
 }
 
 void UnmanagedWrapper::PADDR_POKEBYTE(long long addr, unsigned char val, long offset) {
-    /*u8* ptr = Core::System::GetInstance().Memory().GetPhysicalRef(offset).GetPtr();*/
-    u8* ptr = (u8*)mem_readb(addr);
+    /*u8* ptr = Core::System::GetInstance().Memory().GetPhysicalRef(offset).GetPtr();*//*
+    u8* ptr = (u8*)mem_readb(PAGING_GetPhysicalAddress((PhysPt)offset));*/
+    u8* ptr = (u8*)mem_readb((PhysPt)addr);
     unsigned char* dst = ptr + addr;
     std::memcpy(dst, &val, sizeof(u8));
     /*Core::System::GetInstance().InvalidateCacheRange(reinterpret_cast<u32>(dst), 1);*/
@@ -97,8 +103,9 @@ void UnmanagedWrapper::PADDR_POKEBYTE(long long addr, unsigned char val, long of
     return;
 }
 
-unsigned char UnmanagedWrapper::PADDR_PEEKBYTE(long long addr, long offset) {
-    auto* ptr = (u8*)mem_readb(addr);
+unsigned char UnmanagedWrapper::PADDR_PEEKBYTE(long long addr, long offset) {/*
+    u8* ptr = (u8*)mem_readb(PAGING_GetPhysicalAddress((PhysPt)addr));*/
+    u8* ptr = (u8*)mem_readb((PhysPt)addr);
     u8 value;
     std::memcpy(&value, ptr + addr, sizeof(u8));
     return value;

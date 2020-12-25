@@ -3395,6 +3395,8 @@ void DOS_Startup(Section* sec) {
 
     mainMenu.get_item("mapper_rescanall").enable(true).refresh_item(mainMenu);
     for (char drv='A';drv <= 'Z';drv++) DOS_EnableDriveMenu(drv);
+    VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
+    VanguardClientUnmanaged::LOAD_GAME_DONE;
 }
 
 void DOS_RescanAll(bool pressed) {
@@ -3430,8 +3432,6 @@ void DOS_Init() {
     item->enable(false).refresh_item(mainMenu);
     item->set_text("Rescan all drives");
     for (char drv='A';drv <= 'Z';drv++) DOS_EnableDriveMenu(drv);
-    VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
-    //VanguardClientUnmanaged::LOAD_GAME_DONE();
 }
 
 void DOS_Int21_7139(char *name1, const char *name2) {
