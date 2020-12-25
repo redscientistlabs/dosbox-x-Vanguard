@@ -427,9 +427,13 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return phys_readb(ptr);
+        return (char)(phys_readb(ptr));
     }
-    return 0;
+    else
+    {
+        LOG_MSG("Error : the provided address is bigger than the memory size!");
+        return 0;
+    }
 }
 
 void RAM::PokeByte(long long addr, unsigned char val) {
@@ -438,7 +442,12 @@ void RAM::PokeByte(long long addr, unsigned char val) {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        phys_writeb(ptr, val);
+        phys_writeb(ptr, (u8)val);
+    }
+    else
+    {
+        LOG_MSG("Error : the provided address is bigger than the memory size!");
+        return;
     }
 }
 
@@ -608,14 +617,14 @@ static void STEP_CORRUPT() // errors trapped by CPU_STEP
 {
     if(!VanguardClient::enableRTC)
         return;
-    RTCV::CorruptCore::RtcClock::StepCorrupt(true, true);
+    RtcClock::StepCorrupt(true, false);
 }
 
 
 #pragma region Hooks
 void VanguardClientUnmanaged::CORE_STEP() {
-    if(!VanguardClient::enableRTC)
-        return;
+    /*if(!VanguardClient::enableRTC)
+        return;*/
     // Any step hook for corruption
     ActionDistributor::Execute("ACTION");
     STEP_CORRUPT();

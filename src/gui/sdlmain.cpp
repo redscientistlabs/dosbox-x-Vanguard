@@ -1281,6 +1281,7 @@ static unsigned char logo[32*32*4]= {
 #include <src/Vanguard/VanguardClientInitializer.h>
 
 #include "Vanguard/VanguardClient.h"
+#include <src/Vanguard/UnmanagedWrapper.h>
 
 #if !defined(MACOSX)
 static void DOSBox_SetOriginalIcon(void) {
@@ -12648,50 +12649,50 @@ fresh_boot:
 #endif
             DOSBOX_RunMachine();
         } catch (int x) {
-            if (x == 2) { /* booting a guest OS. "boot" has already done the work to load the image and setup CPU registers */
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to boot guest OS");
+            //if (x == 2) { /* booting a guest OS. "boot" has already done the work to load the image and setup CPU registers */
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to boot guest OS");
 
-                run_machine = true; /* make note. don't run the whole shebang from an exception handler! */
-                dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
-            }
-            else if (x == 3) { /* reboot the system */
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot the system");
+            //    run_machine = true; /* make note. don't run the whole shebang from an exception handler! */
+            //    dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
+            //}
+            //else if (x == 3) { /* reboot the system */
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot the system");
 
-                reboot_machine = true;
-                dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
-            }
-            else if (x == 5) { /* go to PC-98 mode */
-                E_Exit("Obsolete int signal");
-            }
-            else if (x == 6) { /* reboot DOS kernel */
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot DOS kernel");
+            //    reboot_machine = true;
+            //    dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
+            //}
+            //else if (x == 5) { /* go to PC-98 mode */
+            //    E_Exit("Obsolete int signal");
+            //}
+            //else if (x == 6) { /* reboot DOS kernel */
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot DOS kernel");
 
-                reboot_dos = true;
-                dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
-            }
-            else if (x == 7) { /* DOS kernel corruption error (need to restart the DOS kernel) */
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot DOS kernel");
+            //    reboot_dos = true;
+            //    dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
+            //}
+            //else if (x == 7) { /* DOS kernel corruption error (need to restart the DOS kernel) */
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to reboot DOS kernel");
 
-                reboot_dos = true;
-                wait_debugger = true;
-                dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
-            }
-            else if (x == 8) { /* Booting to a BIOS, shutting down DOSBox-X BIOS */
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to boot into BIOS image");
+            //    reboot_dos = true;
+            //    wait_debugger = true;
+            //    dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
+            //}
+            //else if (x == 8) { /* Booting to a BIOS, shutting down DOSBox-X BIOS */
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw a signal to boot into BIOS image");
 
-                reboot_machine = true;
-                dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
-            }
-            else {
-                LOG(LOG_MISC,LOG_DEBUG)("Emulation threw DOSBox-X kill switch signal");
+            //    reboot_machine = true;
+            //    dos_kernel_shutdown = !dos_kernel_disabled; /* only if DOS kernel enabled */
+            //}
+            //else {
+            //    LOG(LOG_MISC,LOG_DEBUG)("Emulation threw DOSBox-X kill switch signal");
 
-                // kill switch (see instances of throw(0) and throw(1) elsewhere in DOSBox)
-                run_machine = false;
-                dos_kernel_shutdown = false;
-            }
+            //    // kill switch (see instances of throw(0) and throw(1) elsewhere in DOSBox)
+            //    run_machine = false;
+            //    dos_kernel_shutdown = false;
+            //}
         }
         catch (...) {
-            throw;
+            //throw;
         }
 
 #if defined(WIN32) && !defined(C_SDL2)

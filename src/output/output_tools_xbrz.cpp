@@ -4,6 +4,7 @@
 
 #include "dosbox.h"
 #include "sdlmain.h"
+#include <ppl.h>
 
 using namespace std;
 

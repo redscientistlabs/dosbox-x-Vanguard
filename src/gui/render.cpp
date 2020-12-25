@@ -897,6 +897,7 @@ static void ChangeScaler(bool pressed) {
 } */
 
 #include "vga.h"
+#include <src/Vanguard/UnmanagedWrapper.h>
 
 void RENDER_UpdateFromScalerSetting(void);
 
