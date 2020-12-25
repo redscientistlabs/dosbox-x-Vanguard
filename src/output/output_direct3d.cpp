@@ -1,7 +1,7 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <math.h>
-
+#include <ppl.h> 
 #include "dosbox.h"
 #include <output/output_direct3d.h>
 
