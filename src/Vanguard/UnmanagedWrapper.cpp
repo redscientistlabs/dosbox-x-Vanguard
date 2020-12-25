@@ -42,7 +42,16 @@ bool UnmanagedWrapper::IS_N3DS() {
 std::string UnmanagedWrapper::VANGUARD_GETGAMENAME() {
     std::string title;
     //title = RunningProgram;
-    title = "";
+    DOS_MCB mcb(dos.psp()-1);
+    static char name[9];
+    mcb.GetFileName(name);
+    name[8] = 0;
+    if(!strlen(name)) strcpy(name, "DOSBOX-X");
+    for(Bitu i = 0; i < 8; i++) { //Don't put garbage in the title bar. Mac OS X doesn't like it
+        if(name[i] == 0) break;
+        if(!isprint(*reinterpret_cast<unsigned char*>(&name[i]))) name[i] = '?';
+    }
+    title = name;
     return title;
 }
 
@@ -58,7 +67,7 @@ void UnmanagedWrapper::VANGUARD_LOADSTATE(const std::string& file) {
     //}
     //Core::System::GetInstance().SendSignal(Core::System::Signal::LoadVanguard, 9);
     //SaveState::save(SaveState::SLOT_COUNT);
-    SaveState::instance().load(1);
+    SaveState::instance().load(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
     return;
 }
 
@@ -76,7 +85,7 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
-    SaveState::instance().save(1);
+    SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
     return "";
 }
 

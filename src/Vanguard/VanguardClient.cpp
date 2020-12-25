@@ -120,16 +120,16 @@ getDefaultPartial() {
     partial->Set(VSPEC::NAME, "DOSBox-X");
     partial->Set(VSPEC::SUPPORTS_RENDERING, false);
     partial->Set(VSPEC::SUPPORTS_CONFIG_MANAGEMENT, false);
-    partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, true);
-    partial->Set(VSPEC::SUPPORTS_KILLSWITCH, true);
+    partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, false);
+    partial->Set(VSPEC::SUPPORTS_KILLSWITCH, false);
     partial->Set(VSPEC::SUPPORTS_REALTIME, true);
-    partial->Set(VSPEC::SUPPORTS_SAVESTATES, false);
+    partial->Set(VSPEC::SUPPORTS_SAVESTATES, true);
     partial->Set(VSPEC::SUPPORTS_REFERENCES, true);
     //partial->Set(VSPEC::REPLACE_MANUALBLAST_WITH_GHCORRUPT, true);
     partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, true);
     partial->Set(VSPEC::CONFIG_PATHS, VanguardClient::configPaths);
     partial->Set(VSPEC::SYSTEM, String::Empty);
-    partial->Set(VSPEC::GAMENAME, "placeholder");
+    partial->Set(VSPEC::GAMENAME, String::Empty);
     partial->Set(VSPEC::SYSTEMPREFIX, String::Empty);
     partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
@@ -138,6 +138,8 @@ getDefaultPartial() {
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     partial->Set(VSPEC::EMUDIR, VanguardClient::emuDir);
+    partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
+    //partial->Set(VSPEC::SUPPORTS_MULTITHREAD, true);
     return partial;
 }
 
@@ -239,8 +241,9 @@ void VanguardClientInitializer::StartVanguardClient()
     System::Windows::Forms::Form^ dummy = gcnew System::Windows::Forms::Form();
     IntPtr Handle = dummy->Handle;
     SyncObjectSingleton::SyncObject = dummy;
-    SyncObjectSingleton::EmuInvokeDelegate = gcnew SyncObjectSingleton::ActionDelegate(&EmuThreadExecute);
+    //SyncObjectSingleton::EmuInvokeDelegate = gcnew SyncObjectSingleton::ActionDelegate(&EmuThreadExecute);
     SyncObjectSingleton::UseQueue = true;
+    SyncObjectSingleton::EmuThreadIsMainThread = true;
 
     // Start everything
     VanguardClient::configPaths = gcnew array<String^>{""
@@ -356,6 +359,17 @@ public:
 //};
 //public
 //ref class CPU : RTCV::CorruptCore::IMemoryDomain {
+//public:
+//    property System::String^ Name { virtual System::String^ get(); }
+//    property long long Size { virtual long long get(); }
+//    property int WordSize { virtual int get(); }
+//    property bool BigEndian { virtual bool get(); }
+//    virtual unsigned char PeekByte(long long addr);
+//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual void PokeByte(long long addr, unsigned char val);
+//};
+//public
+//ref class Voodoo : RTCV::CorruptCore::IMemoryDomain {
 //public:
 //    property System::String^ Name { virtual System::String^ get(); }
 //    property long long Size { virtual long long get(); }
@@ -776,7 +790,6 @@ bool VanguardClient::LoadState(std::string filename) {
     RtcClock::ResetCount();
     stateLoading = true;
     UnmanagedWrapper::VANGUARD_LOADSTATE(filename);
-    SaveState::instance().load(1);
     // We have to do it this way to prevent deadlock due to synced calls. It sucks but it's required
     // at the moment
     int i = 0;
@@ -799,7 +812,6 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     const char* converted_filename = s.c_str();
     VanguardClient::lastStateName = filename;
     VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
-    SaveState::instance().save(1);
     return true;
 }
 
@@ -890,7 +902,6 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
 
     case REMOTE_LOADROM: {
         String^ filename = (String^)advancedMessage->objectValue;
-        //DOSBox DEMANDS the rom is loaded from the main thread
         System::Action<String^>^ a = gcnew Action<String^>(&LoadRom);
         SyncObjectSingleton::FormExecute<String^>(a, filename);
     }
