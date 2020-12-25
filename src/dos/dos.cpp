@@ -3384,8 +3384,6 @@ void DOS_OnReset(Section* /*sec*/) {
 }
 
 void DOS_Startup(Section* sec) {
-    VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
-    //VanguardClientUnmanaged::LOAD_GAME_DONE();
     (void)sec;//UNUSED
 
 	if (test == NULL) {
@@ -3432,6 +3430,8 @@ void DOS_Init() {
     item->enable(false).refresh_item(mainMenu);
     item->set_text("Rescan all drives");
     for (char drv='A';drv <= 'Z';drv++) DOS_EnableDriveMenu(drv);
+    VanguardClientInitializer::Initialize(); //RTC_Hijack: Initializing
+    //VanguardClientUnmanaged::LOAD_GAME_DONE();
 }
 
 void DOS_Int21_7139(char *name1, const char *name2) {
