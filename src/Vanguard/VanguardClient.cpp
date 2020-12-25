@@ -617,7 +617,7 @@ static void STEP_CORRUPT() // errors trapped by CPU_STEP
 {
     if(!VanguardClient::enableRTC)
         return;
-    RtcClock::StepCorrupt(true, false);
+    RtcClock::StepCorrupt(true, true);
 }
 
 

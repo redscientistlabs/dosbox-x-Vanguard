@@ -394,3 +394,4 @@ vs2015/libpng/linux-build/*
 vs2015/freetype/objs
 /vs2015/log.txt
 /vs2015/LOGCPU.TXT
+/out/build/x64-Debug (default)
