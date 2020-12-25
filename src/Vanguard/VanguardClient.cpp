@@ -109,7 +109,6 @@ static void EmuThreadExecute(Action^ callback) {
 static void EmuThreadExecute(IntPtr callbackPtr) {
     //  main_window.SetEmuThread(false);
     //sdl.active = false;
-    vm
     static_cast<void(__stdcall*)(void)>(callbackPtr.ToPointer())();
     // main_window.SetEmuThread(true);
     //sdl.active = true;
