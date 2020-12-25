@@ -122,8 +122,12 @@
       <UniqueIdentifier>{8c545daa-26e1-4aad-a8ee-48caa3730fab}</UniqueIdentifier>
     </Filter>
     <Filter Include="Sources\Vanguard">
-      <UniqueIdentifier>{8044a68b-0425-447c-8b21-5448d9a21fc2}</UniqueIdentifier>
+      <UniqueIdentifier>{c74c17b2-5510-48f4-92d5-b1a2cfcc4797}</UniqueIdentifier>
     </Filter>
+    <!-- 
+    <Filter Include="Sources\Vanguard">
+      <UniqueIdentifier>{8044a68b-0425-447c-8b21-5448d9a21fc2}</UniqueIdentifier>
+    </Filter> -->
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\aviwriter\avi_rw_iobuf.cpp">
@@ -1518,6 +1522,14 @@
     <ClCompile Include="..\src\libs\decoders\internal\opus\silk\debug_silk.c">
       <Filter>Sources\libs\decoder</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp" />
+    <ClCompile Include="..\src\Vanguard\VanguardClient.cpp" />
+    <ClCompile Include="..\src\Vanguard\VanguardConfigLoader.cpp" />
+    <ClCompile Include="..\src\Vanguard\VanguardSettings.cpp" />
+    <ClCompile Include="..\src\Vanguard\ManagedWrapper.cpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClCompile>
+    <!-- 
     <ClCompile Include="..\src\Vanguard\VanguardClient.cpp">
       <Filter>Sources\Vanguard</Filter>
     </ClCompile>
@@ -1529,7 +1541,7 @@
     </ClCompile>
     <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp">
       <Filter>Sources\Vanguard</Filter>
-    </ClCompile>
+    </ClCompile> -->
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\aviwriter\avi.h">
@@ -2360,6 +2372,17 @@
     <ClInclude Include="..\src\libs\mt32\MidiStreamParser.h">
       <Filter>Sources\libs\mt32</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\Vanguard\Helpers.hpp" />
+    <ClInclude Include="..\src\Vanguard\ThreadLocalHelper.h" />
+    <ClInclude Include="..\src\Vanguard\UnmanagedWrapper.h" />
+    <ClInclude Include="..\src\Vanguard\VanguardClient.h" />
+    <ClInclude Include="..\src\Vanguard\VanguardClientInitializer.h" />
+    <ClInclude Include="..\src\Vanguard\VanguardConfigLoader.h" />
+    <ClInclude Include="..\src\Vanguard\VanguardSettingsWrapper.h" />
+    <ClInclude Include="..\src\Vanguard\ManagedWrapper.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <!-- 
     <ClInclude Include="..\src\Vanguard\Helpers.hpp">
       <Filter>Sources\Vanguard</Filter>
     </ClInclude>
@@ -2380,7 +2403,7 @@
     </ClInclude>
     <ClInclude Include="..\src\Vanguard\UnmanagedWrapper.h">
       <Filter>Sources\Vanguard</Filter>
-    </ClInclude>
+    </ClInclude> -->
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\winres.rc">

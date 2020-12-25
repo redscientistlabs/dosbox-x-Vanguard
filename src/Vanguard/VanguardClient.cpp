@@ -13,9 +13,11 @@
 #include <cpu.h>
 #include <mixer.h>
 #include <vga.h>
+#include "control.h"
 
 #include "UnmanagedWrapper.h"
 #include "VanguardSettingsWrapper.h"
+#include <include/paging.h>
 
 //#include "core/core.h"
 #using < system.dll>
@@ -76,7 +78,7 @@ public:
     static void SaveWindowPosition();
     static String^ GetSyncSettings();
     static void SetSyncSettings(String^ ss);
-
+    //static bool RefreshDomains(bool updateSpecs = true);
     static String^ emuDir = IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location);
     static String^ logPath = IO::Path::Combine(emuDir, "EMU_LOG.txt");
 
@@ -117,7 +119,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, true);
     partial->Set(VSPEC::CONFIG_PATHS, VanguardClient::configPaths);
     partial->Set(VSPEC::SYSTEM, String::Empty);
-    partial->Set(VSPEC::GAMENAME, String::Empty);
+    partial->Set(VSPEC::GAMENAME, "placeholder");
     partial->Set(VSPEC::SYSTEMPREFIX, String::Empty);
     partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
@@ -245,7 +247,6 @@ void VanguardClientInitializer::StartVanguardClient()
 
     //VanguardClient::LoadWindowPosition();
 }
-
 
 void VanguardClient::StartClient() {
     RTCV::Common::Logging::StartLogging(logPath);
@@ -377,7 +378,18 @@ long long Memory::Size::get() {/*
         return Memory::FCRAM_N3DS_SIZE;
     }
     return Memory::FCRAM_SIZE;*/
-    return MEM_PAGESIZE;
+    Section_prop* section = static_cast<Section_prop*>(control->GetSection("dosbox"));
+    Bitu memsizekb = (Bitu)section->Get_int("memsizekb");
+    Bitu memsize = (Bitu)section->Get_int("memsize");
+
+    if(memsizekb == 0 && memsize < 1) memsize = 1;
+    else if(memsizekb != 0 && (Bits)memsize < 0) memsize = 0;
+
+    /* round up memsizekb to 4KB multiple */
+    memsizekb = (memsizekb + 3ul) & (~3ul);
+
+    /* roll memsize into memsizekb, simplify this code */
+    return (memsizekb/1024 + memsize) * 1024ul * 1024ul;
 }
 
 int Memory::WordSize::get() {
@@ -392,14 +404,14 @@ unsigned char Memory::PeekByte(long long addr) {
 
     long offset;
     offset = addr;
-    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, offset);
+    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, PAGING_GetPhysicalAddress((PhysPt)addr));
 }
 
 void Memory::PokeByte(long long addr, unsigned char val) {
 
     long offset;
     offset = addr;
-    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, offset);
+    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, PAGING_GetPhysicalAddress((PhysPt)addr));
 }
 
 array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
@@ -514,8 +526,8 @@ array<unsigned char>^ Vga::PeekBytes(long long address, int length) {
 
 static array<MemoryDomainProxy^>^ GetInterfaces() {
 
-    /*if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
-        return gcnew array<MemoryDomainProxy^>(0);*/
+    if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
+        return gcnew array<MemoryDomainProxy^>(0);
     array<MemoryDomainProxy^>^ interfaces = gcnew array<MemoryDomainProxy^>(1);
     interfaces[0] = (gcnew MemoryDomainProxy(gcnew Memory));
     //interfaces[1] = (gcnew MemoryDomainProxy(gcnew Vga));

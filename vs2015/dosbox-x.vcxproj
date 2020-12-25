@@ -1360,6 +1360,7 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
     <ClCompile Include="..\src\libs\fluidsynth\fluid_ringbuffer.c" />
     <ClCompile Include="..\src\libs\fluidsynth\fluid_settings.c" />
     <ClCompile Include="..\src\libs\fluidsynth\fluid_sys.c" />
+    <ClCompile Include="..\src\Vanguard\ManagedWrapper.cpp" />
     <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug SDL2|x64'">true</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release SDL2|x64'">true</CompileAsManaged>
@@ -1663,6 +1664,7 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
     <ClInclude Include="..\src\Vanguard\Helpers.hpp">
       <FileType>CppHeader</FileType>
     </ClInclude>
+    <ClInclude Include="..\src\Vanguard\ManagedWrapper.h" />
     <ClInclude Include="..\src\Vanguard\ThreadLocalHelper.h" />
     <ClInclude Include="..\src\Vanguard\UnmanagedWrapper.h" />
     <ClInclude Include="..\src\Vanguard\VanguardClient.h" />
