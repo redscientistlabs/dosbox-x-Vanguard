@@ -536,6 +536,7 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
       </BasicRuntimeChecks>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ExceptionHandling>false</ExceptionHandling>
+      <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
       <AdditionalDependencies>winmm.lib;imm32.lib;dsound.lib;dxguid.lib;SetupAPI.lib;version.lib;Iphlpapi.lib;Ws2_32.lib;opengl32.lib;$(SolutionDir)..\obj\libpdcurses\$(Platform)\$(Configuration)\libpdcurses.lib;$(SolutionDir)..\obj\zlib\$(Platform)\$(Configuration)\zlib.lib;$(SolutionDir)..\obj\libpng\$(Platform)\$(Configuration)\libpng.lib;$(SolutionDir)..\obj\freetype\$(Platform)\$(Configuration)\freetype.lib;$(SolutionDir)..\obj\SDL2\$(Platform)\$(Configuration)\sdl2.lib;$(SolutionDir)..\obj\SDL2main\$(Platform)\$(Configuration)\sdl2main.lib;$(SolutionDir)..\obj\SDL_net\$(Platform)\$(Configuration)\SDL_net.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -1192,7 +1193,9 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
     <ClCompile Include="..\src\aviwriter\riff.cpp" />
     <ClCompile Include="..\src\aviwriter\riff_wav_writer.cpp" />
     <ClCompile Include="..\src\libs\mt32\ROMInfo.cpp" />
-    <ClCompile Include="..\src\gui\sdlmain.cpp" />
+    <ClCompile Include="..\src\gui\sdlmain.cpp">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug SDL2|x64'">false</CompileAsManaged>
+    </ClCompile>
     <ClCompile Include="..\src\gui\sdl_gui.cpp" />
     <ClCompile Include="..\src\gui\sdl_mapper.cpp" />
     <ClCompile Include="..\src\libs\mt32\sha1\sha1.cpp" />
@@ -1360,7 +1363,9 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
     <ClCompile Include="..\src\libs\fluidsynth\fluid_ringbuffer.c" />
     <ClCompile Include="..\src\libs\fluidsynth\fluid_settings.c" />
     <ClCompile Include="..\src\libs\fluidsynth\fluid_sys.c" />
-    <ClCompile Include="..\src\Vanguard\ManagedWrapper.cpp" />
+    <ClCompile Include="..\src\Vanguard\ManagedWrapper.cpp">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug SDL2|x64'">true</CompileAsManaged>
+    </ClCompile>
     <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug SDL2|x64'">true</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release SDL2|x64'">true</CompileAsManaged>
@@ -1672,20 +1677,6 @@ copy "$(SolutionDir)\..\contrib\windows\shaders\*.*" "$(OutputPath)\shaders\"</C
     <ClInclude Include="..\src\Vanguard\VanguardConfigLoader.h" />
     <ClInclude Include="..\src\Vanguard\VanguardSettingsWrapper.h" />
     <ClInclude Include="config.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\RTCV\Source\Frontend\UI\UI.csproj">
-      <Project>{c7489fbf-4db8-4969-bf1b-852399b74d3d}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\RTCV\Source\Libraries\Common\Common.csproj">
-      <Project>{d7131150-df47-4e58-9807-3c1eb2a54069}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\RTCV\Source\Libraries\CorruptCore\CorruptCore.csproj">
-      <Project>{9977ecbd-3e02-4e14-981f-379d6e505d19}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\..\RTCV\Source\Libraries\Vanguard\Vanguard.csproj">
-      <Project>{b657d278-b0c8-4a41-93df-435fe01a769f}</Project>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

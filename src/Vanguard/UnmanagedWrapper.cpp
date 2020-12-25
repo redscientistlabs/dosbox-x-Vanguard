@@ -92,11 +92,10 @@ void UnmanagedWrapper::VANGUARD_SAVESTATE_DONE() {
 void UnmanagedWrapper::PADDR_POKEBYTE(long long addr, unsigned char val, long offset) {
     /*u8* ptr = Core::System::GetInstance().Memory().GetPhysicalRef(offset).GetPtr();*//*
     u8* ptr = (u8*)mem_readb(PAGING_GetPhysicalAddress((PhysPt)offset));*/
-    u8* ptr = (u8*)mem_readb((PhysPt)addr);
-    unsigned char* dst = ptr + addr;
-    std::memcpy(dst, &val, sizeof(u8));
+    //u8* ptr = (u8)phys_readb((PhysPt)offset);
+    //unsigned char* dst = ptr + addr;
+    phys_writeb((PhysPt)addr, val);
     /*Core::System::GetInstance().InvalidateCacheRange(reinterpret_cast<u32>(dst), 1);*/
-    mem_writeb(addr, val);
     /*if (VideoCore::g_renderer != nullptr) {
         VideoCore::g_renderer->Rasterizer()->InvalidateRegion(reinterpret_cast<PAddr>(dst), 1);
     }*/
@@ -105,9 +104,10 @@ void UnmanagedWrapper::PADDR_POKEBYTE(long long addr, unsigned char val, long of
 
 unsigned char UnmanagedWrapper::PADDR_PEEKBYTE(long long addr, long offset) {/*
     u8* ptr = (u8*)mem_readb(PAGING_GetPhysicalAddress((PhysPt)addr));*/
-    u8* ptr = (u8*)mem_readb((PhysPt)addr);
+    //u8* ptr = (u8*)phys_readb((PhysPt)offset);
     u8 value;
-    std::memcpy(&value, ptr + addr, sizeof(u8));
+    //std::memcpy(&value, ptr + addr, sizeof(u8));
+    value = (u8)phys_readb((PhysPt)addr);
     return value;
 }
 

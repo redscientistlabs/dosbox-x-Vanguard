@@ -13,7 +13,6 @@
 #ifdef __WIN32__
 #include "SDL_syswm.h"
 #endif
-
 #ifndef DOSBOX_SDLMAIN_H
 #define DOSBOX_SDLMAIN_H
 

@@ -1522,11 +1522,19 @@
     <ClCompile Include="..\src\libs\decoders\internal\opus\silk\debug_silk.c">
       <Filter>Sources\libs\decoder</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp" />
-    <ClCompile Include="..\src\Vanguard\VanguardClient.cpp" />
-    <ClCompile Include="..\src\Vanguard\VanguardConfigLoader.cpp" />
-    <ClCompile Include="..\src\Vanguard\VanguardSettings.cpp" />
     <ClCompile Include="..\src\Vanguard\ManagedWrapper.cpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Vanguard\UnmanagedWrapper.cpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Vanguard\VanguardClient.cpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Vanguard\VanguardConfigLoader.cpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Vanguard\VanguardSettings.cpp">
       <Filter>Sources\Vanguard</Filter>
     </ClCompile>
     <!-- 
@@ -2372,14 +2380,28 @@
     <ClInclude Include="..\src\libs\mt32\MidiStreamParser.h">
       <Filter>Sources\libs\mt32</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\Vanguard\Helpers.hpp" />
-    <ClInclude Include="..\src\Vanguard\ThreadLocalHelper.h" />
-    <ClInclude Include="..\src\Vanguard\UnmanagedWrapper.h" />
-    <ClInclude Include="..\src\Vanguard\VanguardClient.h" />
-    <ClInclude Include="..\src\Vanguard\VanguardClientInitializer.h" />
-    <ClInclude Include="..\src\Vanguard\VanguardConfigLoader.h" />
-    <ClInclude Include="..\src\Vanguard\VanguardSettingsWrapper.h" />
     <ClInclude Include="..\src\Vanguard\ManagedWrapper.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\ThreadLocalHelper.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\Helpers.hpp">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\UnmanagedWrapper.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\VanguardClient.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\VanguardClientInitializer.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\VanguardConfigLoader.h">
+      <Filter>Sources\Vanguard</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Vanguard\VanguardSettingsWrapper.h">
       <Filter>Sources\Vanguard</Filter>
     </ClInclude>
     <!-- 

@@ -9,20 +9,26 @@
 #include "VanguardClientInitializer.h"
 #include "Helpers.hpp"
 #include "mem.h"
-
+#include "dos_inc.h"
+#include "dos_system.h"
+//#include "sdlmain.h"
 #include <cpu.h>
 #include <mixer.h>
 #include <vga.h>
+#include <thread>
+#include <setup.h>
 #include "control.h"
+#include <msclr/marshal_cppstd.h>
 
 #include "UnmanagedWrapper.h"
+#include <src/hardware/mame/emu.h>
 #include "VanguardSettingsWrapper.h"
 #include <include/paging.h>
 
 //#include "core/core.h"
 #using < system.dll>
 #using < system.windows.forms.dll>
-//#using <system.collections.dll>
+#using <system.collections.dll>
 
 //If we provide just the dll name and then compile with /AI it works, but intellisense doesn't pick up on it, so we use a full relative path
 #using <../../RTCV/Build/NetCore.dll>
@@ -93,6 +99,7 @@ public:
     static System::String^ lastStateName = "";
     static System::String^ fileToCopy = "";
     //static Core::TimingEventType* event;
+    
 };
 
 static void EmuThreadExecute(Action^ callback) {
@@ -101,8 +108,11 @@ static void EmuThreadExecute(Action^ callback) {
 
 static void EmuThreadExecute(IntPtr callbackPtr) {
     //  main_window.SetEmuThread(false);
+    //sdl.active = false;
+    vm
     static_cast<void(__stdcall*)(void)>(callbackPtr.ToPointer())();
     // main_window.SetEmuThread(true);
+    //sdl.active = true;
 }
 
 static PartialSpec^
@@ -114,8 +124,9 @@ getDefaultPartial() {
     partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, true);
     partial->Set(VSPEC::SUPPORTS_KILLSWITCH, true);
     partial->Set(VSPEC::SUPPORTS_REALTIME, true);
-    partial->Set(VSPEC::SUPPORTS_SAVESTATES, true);
+    partial->Set(VSPEC::SUPPORTS_SAVESTATES, false);
     partial->Set(VSPEC::SUPPORTS_REFERENCES, true);
+    //partial->Set(VSPEC::REPLACE_MANUALBLAST_WITH_GHCORRUPT, true);
     partial->Set(VSPEC::SUPPORTS_MIXED_STOCKPILE, true);
     partial->Set(VSPEC::CONFIG_PATHS, VanguardClient::configPaths);
     partial->Set(VSPEC::SYSTEM, String::Empty);
@@ -124,8 +135,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
-    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"VGA", "CPU", "Mixer"
-    });
+    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{});
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     partial->Set(VSPEC::EMUDIR, VanguardClient::emuDir);
@@ -230,7 +240,7 @@ void VanguardClientInitializer::StartVanguardClient()
     System::Windows::Forms::Form^ dummy = gcnew System::Windows::Forms::Form();
     IntPtr Handle = dummy->Handle;
     SyncObjectSingleton::SyncObject = dummy;
-    //SyncObjectSingleton::EmuInvokeDelegate = gcnew SyncObjectSingleton::ActionDelegate(&EmuThreadExecute);
+    SyncObjectSingleton::EmuInvokeDelegate = gcnew SyncObjectSingleton::ActionDelegate(&EmuThreadExecute);
     SyncObjectSingleton::UseQueue = true;
 
     // Start everything
@@ -322,17 +332,17 @@ public:
     virtual void PokeByte(long long addr, unsigned char val);
 };
 
-public
-ref class Vga : RTCV::CorruptCore::IMemoryDomain {
-public:
-    property System::String^ Name { virtual System::String^ get(); }
-    property long long Size { virtual long long get(); }
-    property int WordSize { virtual int get(); }
-    property bool BigEndian { virtual bool get(); }
-    virtual unsigned char PeekByte(long long addr);
-    virtual array<unsigned char>^ PeekBytes(long long address, int length);
-    virtual void PokeByte(long long addr, unsigned char val);
-};
+//public
+//ref class Vga : RTCV::CorruptCore::IMemoryDomain {
+//public:
+//    property System::String^ Name { virtual System::String^ get(); }
+//    property long long Size { virtual long long get(); }
+//    property int WordSize { virtual int get(); }
+//    property bool BigEndian { virtual bool get(); }
+//    virtual unsigned char PeekByte(long long addr);
+//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual void PokeByte(long long addr, unsigned char val);
+//};
 
 //public
 //ref class Mixer : RTCV::CorruptCore::IMemoryDomain {
@@ -401,17 +411,18 @@ bool Memory::BigEndian::get() {
 }
 
 unsigned char Memory::PeekByte(long long addr) {
-
-    long offset;
-    offset = addr;
-    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, PAGING_GetPhysicalAddress((PhysPt)addr));
+    PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
+    PhysPt ptr;
+    ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
+    return phys_readb(ptr);
 }
 
 void Memory::PokeByte(long long addr, unsigned char val) {
+    PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
+    PhysPt ptr;
+    ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
+    phys_writeb(ptr, val);
 
-    long offset;
-    offset = addr;
-    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, PAGING_GetPhysicalAddress((PhysPt)addr));
 }
 
 array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
@@ -423,39 +434,39 @@ array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
     return bytes;
 }
 #pragma endregion
-#pragma region Vga
-String^ Vga::Name::get() {
-    return "Vga";
-}
-
-long long Vga::Size::get() {
-    return vga.mem.memsize;
-}
-
-int Vga::WordSize::get() {
-    return WORD_SIZE;
-}
-
-bool Vga::BigEndian::get() {
-    return BIG_ENDIAN;
-}
-
-unsigned char Vga::PeekByte(long long addr) {
-    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, NULL); //vga is nothing until we figure out how to expose vga :(
-}
-
-void Vga::PokeByte(long long addr, unsigned char val) {
-    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, NULL);
-}
-
-array<unsigned char>^ Vga::PeekBytes(long long address, int length) {
-    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
-    for(int i = 0; i < length; i++) {
-        bytes[i] = PeekByte(address + i);
-    }
-    return bytes;
-}
-#pragma endregion
+//#pragma region Vga
+//String^ Vga::Name::get() {
+//    return "Vga";
+//}
+//
+//long long Vga::Size::get() {
+//    return vga.mem.memsize;
+//}
+//
+//int Vga::WordSize::get() {
+//    return WORD_SIZE;
+//}
+//
+//bool Vga::BigEndian::get() {
+//    return BIG_ENDIAN;
+//}
+//
+//unsigned char Vga::PeekByte(long long addr) {
+//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, NULL); //vga is nothing until we figure out how to expose vga :(
+//}
+//
+//void Vga::PokeByte(long long addr, unsigned char val) {
+//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, NULL);
+//}
+//
+//array<unsigned char>^ Vga::PeekBytes(long long address, int length) {
+//    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+//    for(int i = 0; i < length; i++) {
+//        bytes[i] = PeekByte(address + i);
+//    }
+//    return bytes;
+//}
+//#pragma endregion
 //#pragma region Mixer
 //String^ Mixer::Name::get() {
 //    return "Mixer";
@@ -526,8 +537,8 @@ array<unsigned char>^ Vga::PeekBytes(long long address, int length) {
 
 static array<MemoryDomainProxy^>^ GetInterfaces() {
 
-    if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
-        return gcnew array<MemoryDomainProxy^>(0);
+    //if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
+    //    return gcnew array<MemoryDomainProxy^>(0);
     array<MemoryDomainProxy^>^ interfaces = gcnew array<MemoryDomainProxy^>(1);
     interfaces[0] = (gcnew MemoryDomainProxy(gcnew Memory));
     //interfaces[1] = (gcnew MemoryDomainProxy(gcnew Vga));
@@ -766,6 +777,7 @@ bool VanguardClient::LoadState(std::string filename) {
     RtcClock::ResetCount();
     stateLoading = true;
     UnmanagedWrapper::VANGUARD_LOADSTATE(filename);
+    SaveState::instance().load(1);
     // We have to do it this way to prevent deadlock due to synced calls. It sucks but it's required
     // at the moment
     int i = 0;
@@ -779,7 +791,7 @@ bool VanguardClient::LoadState(std::string filename) {
             return false;
         }
     } while(stateLoading);
-    RefreshDomains();
+    //RefreshDomains();
     return true;
 }
 
@@ -788,6 +800,7 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     const char* converted_filename = s.c_str();
     VanguardClient::lastStateName = filename;
     VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
+    SaveState::instance().save(1);
     return true;
 }
 
@@ -811,7 +824,7 @@ void Quit() {
 
 void AllSpecsSent() {
     VanguardClient::LoadWindowPosition();
-    VanguardClientUnmanaged::LOAD_GAME_DONE();
+    RefreshDomains();
 }
 #pragma endregion
 
@@ -917,6 +930,7 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
     }
                                break;
     case REMOTE_POSTCORRUPTACTION: {
+
     }
                                  break;
 

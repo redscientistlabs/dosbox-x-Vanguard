@@ -43,6 +43,7 @@
 #include <dirent.h>
 #endif
 #include "build_timestamp.h"
+#include <src/Vanguard/VanguardClientInitializer.h>
 
 static bool first_run=true;
 extern bool use_quick_reboot, mountwarning;
