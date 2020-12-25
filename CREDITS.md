@@ -7,7 +7,7 @@ The purpose of this document is to try and build a comprehensive list of source 
 
 The base code is from the [DOSBox](https://www.dosbox.com) project in which some of the SVN commits made since 2011 were incorporated into DOSBox-X. This code had since been heavily modified by the DOSBox-X project.
 
-Some of the source code also came from similar projects such as [DOSBox SVN Daum](http://ykhwong.x-y.net), [DOSBox ECE](https://dosboxece.yesterplay.net/), [DOSBox-staging](https://dosbox-staging.github.io/) and [vDosPlus](http://www.vdosplus.org/), with major works from contributors like Wengier, Allofich, and rderooy.
+Some of the source code also came from similar projects such as [DOSBox SVN Daum](http://ykhwong.x-y.net), [DOSBox ECE](https://dosboxece.yesterplay.net/), [DOSBox Staging](https://dosbox-staging.github.io/) and [vDosPlus](http://www.vdosplus.org/), with major works from other developers and contributors of DOSBox-X such as Wengier, aybe, Allofich, and rderooy.
 
 A list of features ported from DOSBox SVN Daum:
 
@@ -17,7 +17,7 @@ A list of features ported from DOSBox SVN Daum:
 * Printer output
 * NE2000 Ethernet
 * MT-32 emulation (MUNT)
-* Internal 3dfx voodoo chip emulation
+* Internal 3dfx Voodoo card emulation (improved since then by Wengier and joncampbell123 along with code ported from DOSBox ECE)
 * Some support for FluidSynth MIDI synthesizer
 * Improved PC Speaker emulation accuracy
 * CGA with Monochrome Monitor Support
@@ -27,13 +27,14 @@ A list of features ported from DOSBox SVN Daum:
 
 A list of features ported from DOSBox ECE:
 
+* Support for FLAC, MP3, WAV, OGG Vorbis and Opus CD-DA tracks (with some decoders ported and cleaned up from DOSBox Staging and DOSBox Optionals by Wengier)
 * Support for mapping mouse buttons to keyboard
+* Improved support for 3dfx emulation (Glide wrapper and improved internal card emulation; both improved since then by Wengier)
 * Improved support for FluidSynth MIDI synthesizer
 * Updated Nuked OPL3 to 1.8
 
-A list of features ported from DOSBox-staging:
+A list of features ported from DOSBox Staging:
 
-* Support for FLAC, Opus, Vorbis, and MP3 CD-DA tracks
 * AUTOTYPE command for scripted keyboard entry
 * LS command (heavily improved since then by Wengier)
 * Modem phonebook support
@@ -42,25 +43,30 @@ A list of features ported from DOSBox-staging:
 A list of features ported from vDosPlus by Wengier:
 
 * Long filename support (improved for FAT drives since then by Wengier and joncampbell123)
+* TrueType font (TTF) output support (originally by Jos Schaars and heavily improved since then by Wengier)
 * Improved support for automatic drive mounting (Windows)
-* Support for clipboard copy and paste (Windows)
+* Support for clipboard copy and paste (improved since then by Wengier)
 * Several shell improvements
 
 Features such as save & load states and Pentium MMX instructions were also ported from community contributions and have since been improved by the DOSBox-X project.
 
-The [DOSBox-X Wiki](https://github.com/joncampbell123/dosbox-x/wiki) pages were created and updated by Wengier and rderooy. 
+The [DOSBox-X website](https://dosbox-x.com) was designed and maintained by Wengier.
+
+The [DOSBox-X Wiki](https://dosbox-x.com/wiki) pages were created and updated by Wengier and rderooy.
 
 This is an attempt to properly credit the other code and its sources below. It is **not** a complete list yet, and please feel free to revise and correct this list if there are errors.
 
 NE2000 network card emulation (Bochs; LGPLv2+) src/hardware/ne2000.cpp
 
-MT32 synthesizer (MUNT; LGPLv2.1+) src/mt32/.cpp src/mt32/.h
+MT32 synthesizer (MUNT; LGPLv2.1+) src/libs/mt32/.cpp src/libs/mt32/.h
+
+FluidSynth synthesizer (Tom Moebert; GPLv2+) src/libs/fluidsynth/.c src/libs/fluidsynth/.h
 
 Framework-agnostic GUI toolkit (Jorg Walter; GPLv3+) src/libs/gui_tk/.cpp src/libs/gui_tk/.h
 
 Porttalk library, to read/write I/O ports directly (Unknown source) src/libs/porttalk/.cpp src/libs/porttalk/.h
 
-FLAC, Opus, Vorbis, and MP3 libraries (David Reid, Kevin Croft, et al; GPLv2+) src/libs/decoders/.cpp src/libs/decoders/.c src/libs/decoders/.h
+FLAC, MP3, WAV, and Vorbis libraries (David Reid, Kevin Croft, et al; GPLv2+) src/libs/decoders/mp3*.cpp src/libs/decoders/.c src/libs/decoders/.h
 
 FreeDOS utilities as binary blobs (FreeDOS; no license) src/builtin/*.cpp
 

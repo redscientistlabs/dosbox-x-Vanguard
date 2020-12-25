@@ -27,8 +27,11 @@
 #include <stdio.h>
 
 #include "printer_charmaps.h"
+#if defined(WIN32)
+#include "Shellapi.h"
+#endif
 
-CFileLPT::CFileLPT (Bitu nr, Bit8u initIrq, CommandLine* cmd)
+CFileLPT::CFileLPT (Bitu nr, uint8_t initIrq, CommandLine* cmd, bool sq)
                               :CParallel (cmd, nr,initIrq) {
     bool is_file = false;
 	InstallationSuccessful = false;
@@ -37,6 +40,7 @@ CFileLPT::CFileLPT (Bitu nr, Bit8u initIrq, CommandLine* cmd)
     timeout = ~0u;
 	std::string str;
 	ack = false;
+    squote = sq;
 
 	// add a formfeed when closing?
 	if(cmd->FindStringBegin("addFF",str,false))	addFF = true;
@@ -78,6 +82,19 @@ CFileLPT::CFileLPT (Bitu nr, Bit8u initIrq, CommandLine* cmd)
 		filetype = FILE_APPEND;
 	} else filetype = FILE_CAPTURE;
 
+	if (cmd->FindStringFullBegin("openps:",str,squote,false)) {
+		action1 = trim((char *)str.c_str());
+    }
+	if (cmd->FindStringFullBegin("openpcl:",str,squote,false)) {
+		action2 = trim((char *)str.c_str());
+    }
+	if (cmd->FindStringFullBegin("openwith:",str,squote,false)) {
+		action3 = trim((char *)str.c_str());
+    }
+	if (cmd->FindStringFullBegin("openerror:",str,squote,false)) {
+		action4 = trim((char *)str.c_str());
+    }
+
 	if (cmd->FindStringBegin("timeout:",str,false)) {
 		if(sscanf(str.c_str(), "%u",&timeout)!=1) {
 			LOG_MSG("parallel%d: Invalid timeout parameter.",(int)nr+1);
@@ -91,10 +108,93 @@ CFileLPT::CFileLPT (Bitu nr, Bit8u initIrq, CommandLine* cmd)
 	InstallationSuccessful = true;
 }
 
+char bufput[105];
+int bufct = 0;
+static char sig1PCL[] = "\x1b%-12345X@", sig2PCL[] = "\x1b\x45", sigPS[] = "\n%!PS";
+void CFileLPT::doAction() {
+    if (action1.size()||action2.size()||action3.size()) {
+        bool isPCL = false;															// For now
+        bool isPS = false;															// Postscript can be embedded (some WP drivers)
+        if ((action1.size()||action2.size())&&bufct>5) {
+            if (!strncmp(bufput, sig1PCL, sizeof(sig1PCL)-1) || !strncmp(bufput, sig2PCL, sizeof(sig2PCL)-1)) {
+                isPCL = true;
+                int max = bufct>65?60:bufct-5;										// A line should start with the signature in the first 60 characters or so
+                for (int i = 0; i < max; i++)
+                    if (!strncmp(bufput+i, sigPS, sizeof(sigPS)-1)) {
+                        isPS = true;
+                        break;
+                    }
+            } else {																// Also test for PCL Esc sequence
+                if (!strncmp(bufput, sigPS+1, sizeof(sigPS)-2))
+                    isPS = true;
+                char *p = bufput;
+                int count = bufct;
+                while (count-- > 1)
+                    if (*(p++) == 0x1b)
+                        if (*p == '@')												// <Esc>@ = Printer reset Epson
+                            break;
+                        else if (*p > 0x24 && *p < 0x2b && isalpha(*(p+1))) {
+                            isPCL = true;
+                            break;
+                        }
+            }
+        }
+        std::string action=action1.size()&&isPS?action1:(action2.size()&&isPCL?action2:action3);
+        bool fail=false;
+#if defined(WIN32)
+        bool q=false;
+        int pos=-1;
+        for (int i=0; i<action.size(); i++) {
+            if (action[i]=='"') q=!q;
+            else if (action[i]==' ' && !q) {
+                pos=i;
+                break;
+            }
+        }
+        std::string para = name;
+        if (pos>-1) {
+            para=action.substr(pos+1)+" "+name;
+            action=action.substr(0, pos);
+        }
+        fail=(INT_PTR)ShellExecute(NULL, "open", action.c_str(), para.c_str(), NULL, SW_SHOWNORMAL)<=32;
+#else
+        fail=system((action+" "+name).c_str())!=0;
+#endif
+        if (action4.size()&&fail) {
+            action=action4;
+#if defined(WIN32)
+            para = name;
+            pos=-1;
+            for (int i=0; i<action.size(); i++) {
+                if (action[i]=='"') q=!q;
+                else if (action[i]==' ' && !q) {
+                    pos=i;
+                    break;
+                }
+            }
+            if (pos>-1) {
+                para=action.substr(pos+1)+" "+name;
+                action=action.substr(0, pos);
+            }
+            fail=(INT_PTR)ShellExecute(NULL, "open", action.c_str(), para.c_str(), NULL, SW_SHOWNORMAL)<=32;
+#else
+            fail=system((action+" "+name).c_str())!=0;
+#endif
+        }
+        bool systemmessagebox(char const * aTitle, char const * aMessage, char const * aDialogType, char const * aIconType, int aDefaultButton);
+        if (fail) systemmessagebox("Error", "The requested file printing handler failed to complete.", "ok","error", 1);
+    }
+    bufct = 0;
+}
+
 CFileLPT::~CFileLPT () {
 	// close file
-	if(fileOpen)
+	if(fileOpen) {
 		fclose(file);
+		lastChar = 0;
+		fileOpen=false;
+		doAction();
+	}
 	// remove tick handler
 	removeEvent(0);
 }
@@ -127,7 +227,8 @@ bool CFileLPT::OpenFile() {
 	}
 }
 
-bool CFileLPT::Putchar(Bit8u val)
+
+bool CFileLPT::Putchar(uint8_t val)
 {	
 #if PARALLEL_DEBUG
 	log_par(dbg_putchar,"putchar  0x%2x",val);
@@ -136,11 +237,12 @@ bool CFileLPT::Putchar(Bit8u val)
 	
 	// write to file (or not)
 	lastUsedTick = PIC_Ticks;
-	if(!fileOpen) if(!OpenFile()) return false;
+	if(!fileOpen) {bufct = 0;if(!OpenFile()) return false;}
+    if(bufct<100) bufput[bufct++]=val;
 
 	if(codepage_ptr!=NULL) {
-		Bit16u extchar = codepage_ptr[val];
-		if(extchar & 0xFF00) fputc((int)((Bit8u)(extchar >> 8)),file);
+		uint16_t extchar = codepage_ptr[val];
+		if(extchar & 0xFF00) fputc((int)((uint8_t)(extchar >> 8)),file);
 		fputc((Bitu)(extchar & 0xFF),file);
 
 	} else fputc((Bitu)val,file);
@@ -160,14 +262,14 @@ Bitu CFileLPT::Read_COM() {
 	return controlreg;
 }
 Bitu CFileLPT::Read_SR() {
-	Bit8u status =0x9f;
+	uint8_t status =0x9f;
 	if(!ack) status |= 0x40;
 	ack=false;
 	return status;
 }
 
 void CFileLPT::Write_PR(Bitu val) {
-	datareg = (Bit8u)val;
+	datareg = (uint8_t)val;
 }
 void CFileLPT::Write_CON(Bitu val) {
 	// init printer if bit 4 is switched on
@@ -186,7 +288,7 @@ void CFileLPT::Write_IOSEL(Bitu val) {
     (void)val;//UNUSED
 	// not needed for file printing functionality
 }
-void CFileLPT::handleUpperEvent(Bit16u type) {
+void CFileLPT::handleUpperEvent(uint16_t type) {
     (void)type;//UNUSED
 	if(fileOpen && timeout != 0) {
 		if(lastUsedTick + timeout < PIC_Ticks) {
@@ -197,6 +299,7 @@ void CFileLPT::handleUpperEvent(Bit16u type) {
 			lastChar = 0;
 			fileOpen=false;
 			LOG_MSG("Parallel %d: File closed.",(int)port_nr+1);
+			doAction();
 		} else {
 			// Port has been touched in the meantime, try again later
 			float new_delay = (float)((timeout + 1) - (PIC_Ticks - lastUsedTick));

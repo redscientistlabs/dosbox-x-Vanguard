@@ -288,6 +288,7 @@ bool SERIAL_open(const char* portname, COMPORT* port) {
 
     size_t len = strlen(portname);
 	if(len > 240) {
+		free(cp);
 		///////////////////////////////////SetLastError(ERROR_BUFFER_OVERFLOW);
 		return false;
 	}
@@ -591,7 +592,7 @@ int SERIAL_getextchar(COMPORT port) {
 			DosDevIOCtl(port->porthandle, IOCTL_ASYNC, ASYNC_GETCOMMEVENT,
 				0, 0, 0, &event, ulParmLen, &ulParmLen);
 			if (event & (64 + 128) ) { // Break (Bit 6) or Frame or Parity (Bit 7) error
-				Bit8u errreg = 0;
+				uint8_t errreg = 0;
 				if (event & 64) retval |= SERIAL_BREAK_ERR;
 				if (event & 128) {
 					DosDevIOCtl(port->porthandle, IOCTL_ASYNC, ASYNC_GETCOMMERROR,

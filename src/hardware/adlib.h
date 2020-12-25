@@ -33,73 +33,79 @@ namespace Adlib {
 class Timer {
 	//Rounded down start time
 	double start;
+	//Time when you overflow
+	double trigger;
 	//Clock interval
-	double interval;
-	//Delay before you overflow
-	double delay;
-	Bit8u counter;
+	double clockInterval;
+	//cycle interval
+	double counterInterval;
+	uint8_t counter;
+	bool masked;
 public:
 	bool enabled;
 	bool overflow;
 
-	Timer( Bit16s micros ) {
+	Timer( int16_t micros ) {
 		overflow = false;
 		enabled = false;
-		counter = 0;
+		masked = false;
 		start = 0;
-		delay = 0;
+		trigger = 0;
 		//Interval in milliseconds
-		interval = micros * 0.001;
+		clockInterval = micros * 0.001;
+		SetCounter(0);
 	}
 
 	//Update returns with true if overflow
+	//Properly syncs up the start/end to current time and changing intervals
 	bool Update( double time ) {
-		if ( !enabled ) 
-			return false;
-		const double deltaTime = time - start;
-		//Only set the overflow flag when not masked
-		if (deltaTime >= delay  ) {
-			overflow = true;
-			return true;
+		if (enabled && (time >= trigger) ) {
+			//How far into the next cycle
+			const double deltaTime = time - trigger;
+			//Sync start to last cycle
+			const double counterMod = fmod(deltaTime, counterInterval);
+			start = time - counterMod;
+			trigger = start + counterInterval;
+			//Only set the overflow flag when not masked
+			if (!masked) {
+				overflow = true;
+			}
 		}
-		return false;
+		return overflow;
 	}
 	
 	//On a reset make sure the start is in sync with the next cycle
-	void Reset(const double time ) {
+	void Reset() {
 		overflow = false;
-		if ( !enabled )
-			return;
-		//Sync start to the last delay interval
-		const double deltaTime = time - start;
-		const double rem = fmod(deltaTime, delay);
-		start = time - rem;
 	}
 
-	void SetCounter(Bit8u val) {
+	void SetCounter(uint8_t val) {
 		counter = val;
+		//Interval for next cycle
+		counterInterval = (256 - counter) * clockInterval;
 	}
-	
-	//Stopping always clears the overflow as well
+
+	void SetMask(bool set) {
+		masked = set;
+		if (masked)
+			overflow = false;
+	}
+
 	void Stop( ) {
 		enabled = false;
-		overflow = false;
 	}
-	
-	//Starting clears overflow
+
 	void Start( const double time ) {
-		enabled = true;
-		overflow = false;
-		//The counter is basically copied on start so calculate delay now
-		delay = (256 - counter) * interval;
-		//Sync start to the last clock interval
-		double rem = fmod(time, interval);
-		start = time - rem;
-	}
-	
-	//Does this clock need an update, you could save a pic_fullindex on read?
-	bool NeedUpdate() const {
-		return enabled && !overflow;
+		//Only properly start when not running before
+		if (!enabled) {
+			enabled = true;
+			overflow = false;
+			//Sync start to the last clock interval
+			const double clockMod = fmod(time, clockInterval);
+			start = time - clockMod;
+			//Overflow trigger
+			trigger = start + counterInterval;
+		}
 	}
 };
 
@@ -107,10 +113,10 @@ struct Chip {
 	//Last selected register
 	Timer timer0, timer1;
 	//Check for it being a write to the timer
-	bool Write( Bit32u reg, Bit8u val );
+	bool Write( uint32_t reg, uint8_t val );
 	//Read the current timer state, will use current double
-	Bit8u Read( );
-	
+	uint8_t Read( );
+
 	Chip();
 	//poll counter
 	double last_poll = 0;
@@ -128,9 +134,9 @@ typedef enum {
 class Handler {
 public:
 	//Write an address to a chip, returns the address the chip sets
-	virtual Bit32u WriteAddr( Bit32u port, Bit8u val ) = 0;
+	virtual uint32_t WriteAddr( uint32_t port, uint8_t val ) = 0;
 	//Write to a specific register in the chip
-	virtual void WriteReg( Bit32u addr, Bit8u val ) = 0;
+	virtual void WriteReg( uint32_t addr, uint8_t val ) = 0;
 	//Generate a certain amount of samples
 	virtual void Generate( MixerChannel* chan, Bitu samples ) = 0;
 	//Initialize at a specific sample rate and mode
@@ -143,7 +149,7 @@ public:
 };
 
 //The cache for 2 chips or an opl3
-typedef Bit8u RegisterCache[512];
+typedef uint8_t RegisterCache[512];
 
 //Internal class used for dro capturing
 class Capture;
@@ -157,24 +163,24 @@ class Module: public Module_base {
 	Mode mode;
 	//Last selected address in the chip for the different modes
 	union {
-		Bit32u normal;
-		Bit8u dual[2];
+		uint32_t normal;
+		uint8_t dual[2];
 	} reg;
 	struct {
 		bool active;
-		Bit8u index;
-		Bit8u lvol;
-		Bit8u rvol;
+		uint8_t index;
+		uint8_t lvol;
+		uint8_t rvol;
 		bool mixer;
     } ctrl = {};
-	void CacheWrite( Bit32u reg, Bit8u val );
-	void DualWrite( Bit8u index, Bit8u reg, Bit8u val );
-	void CtrlWrite( Bit8u val );
+	void CacheWrite( uint32_t reg, uint8_t val );
+	void DualWrite( uint8_t index, uint8_t reg, uint8_t val );
+	void CtrlWrite( uint8_t val );
 	Bitu CtrlRead( void );
 public:
 	static OPL_Mode oplmode;
 	MixerChannel* mixerChan;
-	Bit32u lastUsed;				//Ticks when adlib was last used to turn of mixing after a few second
+	uint32_t lastUsed;				//Ticks when adlib was last used to turn of mixing after a few second
 
 	Handler* handler;				//Handler that will generate the sound
     RegisterCache cache = {};

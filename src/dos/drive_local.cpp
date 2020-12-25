@@ -33,8 +33,29 @@
 #include "support.h"
 #include "cross.h"
 #include "inout.h"
+#include "callback.h"
 #include "regs.h"
 #include "timer.h"
+#include "../libs/physfs/physfs.h"
+#include "../libs/physfs/physfs.c"
+#include "../libs/physfs/physfs_archiver_7z.c"
+#include "../libs/physfs/physfs_archiver_dir.c"
+#include "../libs/physfs/physfs_archiver_grp.c"
+#include "../libs/physfs/physfs_archiver_hog.c"
+#include "../libs/physfs/physfs_archiver_iso9660.c"
+#include "../libs/physfs/physfs_archiver_mvl.c"
+#include "../libs/physfs/physfs_archiver_qpak.c"
+#include "../libs/physfs/physfs_archiver_slb.c"
+#include "../libs/physfs/physfs_archiver_unpacked.c"
+#include "../libs/physfs/physfs_archiver_vdf.c"
+#include "../libs/physfs/physfs_archiver_wad.c"
+#include "../libs/physfs/physfs_archiver_zip.c"
+#include "../libs/physfs/physfs_byteorder.c"
+#include "../libs/physfs/physfs_platform_posix.c"
+#include "../libs/physfs/physfs_platform_unix.c"
+#include "../libs/physfs/physfs_platform_windows.c"
+#include "../libs/physfs/physfs_platform_winrt.cpp"
+#include "../libs/physfs/physfs_unicode.c"
 #ifndef WIN32
 #include <utime.h>
 #else
@@ -90,10 +111,10 @@ typedef char host_cnv_char_t;
 
 static host_cnv_char_t cpcnv_temp[4096];
 static host_cnv_char_t cpcnv_ltemp[4096];
-static Bit16u ldid[256];
+static uint16_t ldid[256];
 static std::string ldir[256];
-extern bool rsize, freesizecap, force_sfn;
-extern int lfn_filefind_handle;
+extern bool rsize, force_sfn;
+extern int lfn_filefind_handle, freesizecap;
 extern unsigned long totalc, freec;
 
 bool String_ASCII_TO_HOST(host_cnv_char_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/) {
@@ -118,6 +139,24 @@ bool String_ASCII_TO_HOST(host_cnv_char_t *d/*CROSS_LEN*/,const char *s/*CROSS_L
     return true;
 }
 
+template <class MT> bool String_SBCS_TO_HOST_uint16(uint16_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/,const MT *map,const size_t map_max) {
+    const uint16_t* df = d + CROSS_LEN - 1;
+	const char *sf = s + CROSS_LEN - 1;
+
+    while (*s != 0 && s < sf) {
+        unsigned char ic = (unsigned char)(*s++);
+        if (ic >= map_max) return false; // non-representable
+        MT wc = map[ic]; // output: unicode character
+
+        *d++ = (uint16_t)wc;
+    }
+
+    assert(d <= df);
+    *d = 0;
+
+    return true;
+}
+
 template <class MT> bool String_SBCS_TO_HOST(host_cnv_char_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/,const MT *map,const size_t map_max) {
     const host_cnv_char_t* df = d + CROSS_LEN - 1;
 	const char *sf = s + CROSS_LEN - 1;
@@ -133,6 +172,37 @@ template <class MT> bool String_SBCS_TO_HOST(host_cnv_char_t *d/*CROSS_LEN*/,con
         if (utf8_encode(&d,df,(uint32_t)wc) < 0) // will advance d by however many UTF-8 bytes are needed
             return false; // non-representable, or probably just out of room
 #endif
+    }
+
+    assert(d <= df);
+    *d = 0;
+
+    return true;
+}
+
+/* needed for Wengier's TTF output and PC-98 mode */
+template <class MT> bool String_DBCS_TO_HOST_SHIFTJIS_uint16(uint16_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/,const MT *hitbl,const MT *rawtbl,const size_t rawtbl_max) {
+    const uint16_t* df = d + CROSS_LEN - 1;
+	const char *sf = s + CROSS_LEN - 1;
+
+    while (*s != 0 && s < sf) {
+        uint16_t ic = (unsigned char)(*s++);
+        if ((ic & 0xE0) == 0x80 || (ic & 0xE0) == 0xE0) {
+            if (*s == 0) return false;
+            ic <<= 8U;
+            ic += (unsigned char)(*s++);
+        }
+
+        MT rawofs = hitbl[ic >> 6];
+        if (rawofs == 0xFFFF)
+            return false;
+
+        assert((size_t)(rawofs+ (Bitu)0x40) <= rawtbl_max);
+        MT wc = rawtbl[rawofs + (ic & 0x3F)];
+        if (wc == 0x0000)
+            return false;
+
+        *d++ = (uint16_t)wc;
     }
 
     assert(d <= df);
@@ -331,6 +401,39 @@ bool CodePageHostToGuest(char *d/*CROSS_LEN*/,const host_cnv_char_t *s/*CROSS_LE
     return false;
 }
 
+bool CodePageGuestToHostUint16(uint16_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/) {
+    switch (dos.loaded_codepage) {
+        case 437:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
+        case 808:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp808_to_unicode,sizeof(cp808_to_unicode)/sizeof(cp808_to_unicode[0]));
+        case 850:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp850_to_unicode,sizeof(cp850_to_unicode)/sizeof(cp850_to_unicode[0]));
+        case 852:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp852_to_unicode,sizeof(cp852_to_unicode)/sizeof(cp852_to_unicode[0]));
+        case 853:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp853_to_unicode,sizeof(cp853_to_unicode)/sizeof(cp853_to_unicode[0]));
+        case 855:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp855_to_unicode,sizeof(cp855_to_unicode)/sizeof(cp855_to_unicode[0]));
+        case 857:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp857_to_unicode,sizeof(cp857_to_unicode)/sizeof(cp857_to_unicode[0]));
+        case 858:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp858_to_unicode,sizeof(cp858_to_unicode)/sizeof(cp858_to_unicode[0]));
+        case 866:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp866_to_unicode,sizeof(cp866_to_unicode)/sizeof(cp866_to_unicode[0]));
+        case 869:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp869_to_unicode,sizeof(cp869_to_unicode)/sizeof(cp869_to_unicode[0]));
+        case 872:
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp872_to_unicode,sizeof(cp872_to_unicode)/sizeof(cp872_to_unicode[0]));
+        case 932:
+            return String_DBCS_TO_HOST_SHIFTJIS_uint16<uint16_t>(d,s,cp932_to_unicode_hitbl,cp932_to_unicode_raw,sizeof(cp932_to_unicode_raw)/sizeof(cp932_to_unicode_raw[0]));
+        default: // Otherwise just use code page 437
+            return String_SBCS_TO_HOST_uint16<uint16_t>(d,s,cp437_to_unicode,sizeof(cp437_to_unicode)/sizeof(cp437_to_unicode[0]));
+    }
+
+    return false;
+}
+
 bool CodePageGuestToHost(host_cnv_char_t *d/*CROSS_LEN*/,const char *s/*CROSS_LEN*/) {
     switch (dos.loaded_codepage) {
         case 437:
@@ -391,7 +494,7 @@ char *CodePageHostToGuestL(const host_cnv_char_t *s) {
     return (char*)cpcnv_ltemp;
 }
 
-bool localDrive::FileCreate(DOS_File * * file,const char * name,Bit16u attributes) {
+bool localDrive::FileCreate(DOS_File * * file,const char * name,uint16_t attributes) {
     if (nocachedir) EmptyCache();
 
     if (readonly) {
@@ -475,7 +578,7 @@ bool localDrive::FileCreate(DOS_File * * file,const char * name,Bit16u attribute
 	return true;
 }
 
-bool localDrive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
+bool localDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
     if (nocachedir) EmptyCache();
 
     if (readonly) {
@@ -502,7 +605,7 @@ bool localDrive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
 	dirCache.ExpandName(newname);
 
 	//Flush the buffer of handles for the same file. (Betrayal in Antara)
-	Bit8u i,drive=DOS_DRIVES;
+	uint8_t i,drive=DOS_DRIVES;
 	localFile *lfp;
 	for (i=0;i<DOS_DRIVES;i++) {
 		if (Drives[i]==this) {
@@ -530,7 +633,7 @@ bool localDrive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
 #else
 	FILE * hand=fopen(host_name,type);
 #endif
-//	Bit32u err=errno;
+//	uint32_t err=errno;
 	if (!hand) { 
 		if((flags&0xf) != OPEN_READ) {
 #ifdef host_cnv_use_wchar
@@ -692,7 +795,7 @@ bool localDrive::FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) {
 		strcat(tempDir,end);
 	}
 	
-	Bit16u id;
+	uint16_t id;
 	if (!dirCache.FindFirst(tempDir,id)) {
 		DOS_SetError(DOSERR_PATH_NOT_FOUND);
 		return false;
@@ -705,7 +808,7 @@ bool localDrive::FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst) {
 		ldir[lfn_filefind_handle]=tempDir;
 	}
 	
-	Bit8u sAttr;
+	uint8_t sAttr;
 	dta.GetSearchParams(sAttr,tempDir,uselfn);
 
 	if (this->isRemote() && this->isRemovable()) {
@@ -746,11 +849,11 @@ bool localDrive::FindNext(DOS_DTA & dta) {
     char full_name[CROSS_LEN], lfull_name[LFN_NAMELENGTH+1];
     char dir_entcopy[CROSS_LEN], ldir_entcopy[CROSS_LEN];
 
-    Bit8u srch_attr;char srch_pattern[LFN_NAMELENGTH];
-	Bit8u find_attr;
+    uint8_t srch_attr;char srch_pattern[LFN_NAMELENGTH];
+	uint8_t find_attr;
 
     dta.GetSearchParams(srch_attr,srch_pattern,uselfn);
-	Bit16u id = lfn_filefind_handle>=LFN_FILEFIND_MAX?dta.GetDirID():ldid[lfn_filefind_handle];
+	uint16_t id = lfn_filefind_handle>=LFN_FILEFIND_MAX?dta.GetDirID():ldid[lfn_filefind_handle];
 
 again:
     if (!dirCache.FindNext(id,dir_ent,ldir_ent)) {
@@ -794,14 +897,14 @@ again:
 	if (attribs != INVALID_FILE_ATTRIBUTES)
 		find_attr|=attribs&0x3f;
 #else
-	find_attr|=DOS_ATTR_ARCHIVE;
+	if (!(find_attr&DOS_ATTR_DIRECTORY)) find_attr|=DOS_ATTR_ARCHIVE;
 	if(!(stat_block.st_mode & S_IWUSR)) find_attr|=DOS_ATTR_READ_ONLY;
 #endif
  	if (~srch_attr & find_attr & DOS_ATTR_DIRECTORY) goto again;
 	
 	/*file is okay, setup everything to be copied in DTA Block */
 	char find_name[DOS_NAMELENGTH_ASCII], lfind_name[LFN_NAMELENGTH+1];
-    Bit16u find_date,find_time;Bit32u find_size;
+    uint16_t find_date,find_time;uint32_t find_size;
 
 	if(strlen(dir_entcopy)<DOS_NAMELENGTH_ASCII){
 		strcpy(find_name,dir_entcopy);
@@ -813,11 +916,11 @@ again:
 	strcpy(lfind_name,ldir_entcopy);
     lfind_name[LFN_NAMELENGTH]=0;
 
-	find_size=(Bit32u) stat_block.st_size;
+	find_size=(uint32_t) stat_block.st_size;
     const struct tm* time;
 	if((time=localtime(&stat_block.st_mtime))!=0){
-		find_date=DOS_PackDate((Bit16u)(time->tm_year+1900),(Bit16u)(time->tm_mon+1),(Bit16u)time->tm_mday);
-		find_time=DOS_PackTime((Bit16u)time->tm_hour,(Bit16u)time->tm_min,(Bit16u)time->tm_sec);
+		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 	} else {
 		find_time=6; 
 		find_date=4;
@@ -826,7 +929,7 @@ again:
 	return true;
 }
 
-bool localDrive::SetFileAttr(const char * name,Bit16u attr) {
+bool localDrive::SetFileAttr(const char * name,uint16_t attr) {
 	char newname[CROSS_LEN];
 	strcpy(newname,basedir);
 	strcat(newname,name);
@@ -844,7 +947,7 @@ bool localDrive::SetFileAttr(const char * name,Bit16u attr) {
 #if defined (WIN32)
 	if (!SetFileAttributesW(host_name, attr))
 		{
-		DOS_SetError((Bit16u)GetLastError());
+		DOS_SetError((uint16_t)GetLastError());
 		return false;
 		}
 	dirCache.EmptyCache();
@@ -873,7 +976,7 @@ bool localDrive::SetFileAttr(const char * name,Bit16u attr) {
 #endif
 }
 
-bool localDrive::GetFileAttr(const char * name,Bit16u * attr) {
+bool localDrive::GetFileAttr(const char * name,uint16_t * attr) {
     if (nocachedir) EmptyCache();
 
 	char newname[CROSS_LEN];
@@ -894,7 +997,7 @@ bool localDrive::GetFileAttr(const char * name,Bit16u * attr) {
 	Bitu attribs = GetFileAttributesW(host_name);
 	if (attribs == INVALID_FILE_ATTRIBUTES)
 		{
-		DOS_SetError((Bit16u)GetLastError());
+		DOS_SetError((uint16_t)GetLastError());
 		return false;
 		}
 	*attr = attribs&0x3f;
@@ -902,7 +1005,7 @@ bool localDrive::GetFileAttr(const char * name,Bit16u * attr) {
 #else
 	ht_stat_t status;
 	if (ht_stat(host_name,&status)==0) {
-		*attr=DOS_ATTR_ARCHIVE;
+		*attr=status.st_mode & S_IFDIR?0:DOS_ATTR_ARCHIVE;
 		if(status.st_mode & S_IFDIR) *attr|=DOS_ATTR_DIRECTORY;
 		if(!(status.st_mode & S_IWUSR)) *attr|=DOS_ATTR_READ_ONLY;
 		return true;
@@ -941,7 +1044,7 @@ unsigned long localDrive::GetCompressedSize(char* name) {
 		}
 		return size;
 	} else {
-		DOS_SetError((Bit16u)GetLastError());
+		DOS_SetError((uint16_t)GetLastError());
 		return -1;
 	}
 #endif
@@ -956,7 +1059,7 @@ HANDLE localDrive::CreateOpenFile(const char* name) {
 	dirCache.ExpandName(newname);
 	HANDLE handle=CreateFile(newname, FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if (handle==INVALID_HANDLE_VALUE)
-		DOS_SetError((Bit16u)GetLastError());
+		DOS_SetError((uint16_t)GetLastError());
 	return handle;
 }
 
@@ -1006,7 +1109,6 @@ bool localDrive::MakeDir(const char * dir) {
 	int temp=mkdir(host_name,0775);
 #endif
 	if (temp==0) dirCache.CacheOut(newdir,true);
-
 	return (temp==0);// || ((temp!=0) && (errno==EEXIST));
 }
 
@@ -1130,7 +1232,7 @@ bool localDrive::Rename(const char * oldname,const char * newname) {
 #if !defined(WIN32)
 #include <sys/statvfs.h>
 #endif
-bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,Bit16u * _total_clusters,Bit16u * _free_clusters) {
+bool localDrive::AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) {
 	*_bytes_sector=allocation.bytes_sector;
 	*_sectors_cluster=allocation.sectors_cluster;
 	*_total_clusters=allocation.total_clusters;
@@ -1139,7 +1241,7 @@ bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,
 		bool res=false;
 #if defined(WIN32)
 		long unsigned int dwSectPerClust, dwBytesPerSect, dwFreeClusters, dwTotalClusters;
-		Bit8u drive=strlen(basedir)>1&&basedir[1]==':'?toupper(basedir[0])-'A'+1:0;
+		uint8_t drive=strlen(basedir)>1&&basedir[1]==':'?toupper(basedir[0])-'A'+1:0;
 		if (drive>26) drive=0;
 		char root[4]="A:\\";
 		root[0]='A'+drive-1;
@@ -1147,10 +1249,10 @@ bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,
 		if (res) {
 			unsigned long total = dwTotalClusters * dwSectPerClust;
 			int ratio = total > 2097120 ? 64 : (total > 1048560 ? 32 : (total > 524280 ? 16 : (total > 262140 ? 8 : (total > 131070 ? 4 : (total > 65535 ? 2 : 1)))));
-			*_bytes_sector = (Bit16u)dwBytesPerSect;
+			*_bytes_sector = (uint16_t)dwBytesPerSect;
 			*_sectors_cluster = ratio;
-			*_total_clusters = total > 4194240? 65535 : (Bit16u)(dwTotalClusters * dwSectPerClust / ratio);
-			*_free_clusters = total > 4194240? 61440 : (Bit16u)(dwFreeClusters * dwSectPerClust / ratio);
+			*_total_clusters = total > 4194240? 65535 : (uint16_t)(dwTotalClusters * dwSectPerClust / ratio);
+			*_free_clusters = total > 4194240? 61440 : (uint16_t)(dwFreeClusters * dwSectPerClust / ratio);
 			if (rsize) {
 				totalc=dwTotalClusters * dwSectPerClust / ratio;
 				freec=dwFreeClusters * dwSectPerClust / ratio;
@@ -1178,14 +1280,23 @@ bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,
 				}
 			}
 #endif
-			if (allocation.total_clusters || allocation.free_clusters) {
+			if ((allocation.total_clusters || allocation.free_clusters) && freesizecap<3) {
+                long diff = 0;
+                if (freesizecap==2) diff = (freec?freec:*_free_clusters) - allocation.initfree;
 				bool g1=*_bytes_sector * *_sectors_cluster * *_total_clusters > allocation.bytes_sector * allocation.sectors_cluster * allocation.total_clusters;
 				bool g2=*_bytes_sector * *_sectors_cluster * *_free_clusters > allocation.bytes_sector * allocation.sectors_cluster * allocation.free_clusters;
 				if (g1||g2) {
-					*_bytes_sector = allocation.bytes_sector;
-					*_sectors_cluster = allocation.sectors_cluster;
+                    if (freesizecap==2) diff *= (*_bytes_sector * *_sectors_cluster) / (allocation.bytes_sector * allocation.sectors_cluster);
+                    *_bytes_sector = allocation.bytes_sector;
+                    *_sectors_cluster = allocation.sectors_cluster;
 					if (g1) *_total_clusters = allocation.total_clusters;
 					if (g2) *_free_clusters = allocation.free_clusters;
+					if (freesizecap==2) {
+                        if (diff<0&&(-diff)>*_free_clusters)
+                            *_free_clusters=0;
+                        else
+                            *_free_clusters += diff;
+                    }
 					if (*_total_clusters<*_free_clusters) {
 						if (*_free_clusters>65525)
 							*_total_clusters=65535;
@@ -1199,7 +1310,7 @@ bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,
 				}
 			}
 		} else if (!allocation.total_clusters && !allocation.free_clusters) {
-            if (allocation.mediaid==0xF0) {
+			if (allocation.mediaid==0xF0) {
 				*_bytes_sector = 512;
 				*_sectors_cluster = 1;
 				*_total_clusters = 2880;
@@ -1209,7 +1320,7 @@ bool localDrive::AllocationInfo(Bit16u * _bytes_sector,Bit8u * _sectors_cluster,
 				*_sectors_cluster = 1;
 				*_total_clusters = 65535;
 				*_free_clusters = 0;
-            } else {
+			} else {
                 // 512*32*32765==~500MB total size
                 // 512*32*16000==~250MB total free size
 				*_bytes_sector = 512;
@@ -1266,15 +1377,15 @@ bool localDrive::FileStat(const char* name, FileStat_Block * const stat_block) {
 	/* Convert the stat to a FileStat */
     const struct tm* time;
 	if((time=localtime(&temp_stat.st_mtime))!=0) {
-		stat_block->time=DOS_PackTime((Bit16u)time->tm_hour,(Bit16u)time->tm_min,(Bit16u)time->tm_sec);
-		stat_block->date=DOS_PackDate((Bit16u)(time->tm_year+1900),(Bit16u)(time->tm_mon+1),(Bit16u)time->tm_mday);
+		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	}
-	stat_block->size=(Bit32u)temp_stat.st_size;
+	stat_block->size=(uint32_t)temp_stat.st_size;
 	return true;
 }
 
 
-Bit8u localDrive::GetMediaByte(void) {
+uint8_t localDrive::GetMediaByte(void) {
 	return allocation.mediaid;
 }
 
@@ -1388,7 +1499,7 @@ next:
     return false;
 }
 
-localDrive::localDrive(const char * startdir,Bit16u _bytes_sector,Bit8u _sectors_cluster,Bit16u _total_clusters,Bit16u _free_clusters,Bit8u _mediaid, std::vector<std::string> &options) {
+localDrive::localDrive(const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, std::vector<std::string> &options) {
 	strcpy(basedir,startdir);
 	sprintf(info,"local directory %s",startdir);
 	allocation.bytes_sector=_bytes_sector;
@@ -1396,6 +1507,18 @@ localDrive::localDrive(const char * startdir,Bit16u _bytes_sector,Bit8u _sectors
 	allocation.total_clusters=_total_clusters;
 	allocation.free_clusters=_free_clusters;
 	allocation.mediaid=_mediaid;
+	allocation.initfree=0;
+    if (freesizecap==2) {
+        uint16_t bytes_per_sector,total_clusters,free_clusters;
+        uint8_t sectors_per_cluster;
+        freesizecap=3;
+        rsize=true;
+        freec=0;
+        if (AllocationInfo(&bytes_per_sector,&sectors_per_cluster,&total_clusters,&free_clusters))
+            allocation.initfree = freec?freec:free_clusters;
+        rsize=false;
+        freesizecap=2;
+    }
 
 	for (const auto &opt : options) {
 		size_t equ = opt.find_first_of('=');
@@ -1422,27 +1545,30 @@ localDrive::localDrive(const char * startdir,Bit16u _bytes_sector,Bit8u _sectors
 
 
 //TODO Maybe use fflush, but that seemed to fuck up in visual c
-bool localFile::Read(Bit8u * data,Bit16u * size) {
+bool localFile::Read(uint8_t * data,uint16_t * size) {
 	if ((this->flags & 0xf) == OPEN_WRITE) {	// check if file opened in write-only mode
 		DOS_SetError(DOSERR_ACCESS_DENIED);
 		return false;
 	}
-	if (last_action==WRITE) fseek(fhandle,ftell(fhandle),SEEK_SET);
+	if (last_action==WRITE) {
+        fseek(fhandle,ftell(fhandle),SEEK_SET);
+        if (!newtime) UpdateLocalDateTime();
+    }
 	last_action=READ;
-	*size=(Bit16u)fread(data,1,*size,fhandle);
+	*size=(uint16_t)fread(data,1,*size,fhandle);
 	/* Fake harddrive motion. Inspector Gadget with soundblaster compatible */
 	/* Same for Igor */
 	/* hardrive motion => unmask irq 2. Only do it when it's masked as unmasking is realitively heavy to emulate */
     if (!IS_PC98_ARCH) {
-        Bit8u mask = IO_Read(0x21);
+        uint8_t mask = IO_Read(0x21);
         if(mask & 0x4 ) IO_Write(0x21,mask&0xfb);
     }
 
 	return true;
 }
 
-bool localFile::Write(const Bit8u * data,Bit16u * size) {
-	Bit32u lastflags = this->flags & 0xf;
+bool localFile::Write(const uint8_t * data,uint16_t * size) {
+	uint32_t lastflags = this->flags & 0xf;
 	if (lastflags == OPEN_READ || lastflags == OPEN_READ_NO_MOD) {	// check if file opened in read-only mode
 		DOS_SetError(DOSERR_ACCESS_DENIED);
 		return false;
@@ -1454,7 +1580,7 @@ bool localFile::Write(const Bit8u * data,Bit16u * size) {
     }
     else 
     {
-		*size=(Bit16u)fwrite(data,1,*size,fhandle);
+		*size=(uint16_t)fwrite(data,1,*size,fhandle);
 		return true;
     }
 }
@@ -1462,7 +1588,7 @@ bool localFile::Write(const Bit8u * data,Bit16u * size) {
 /* ert, 20100711: Locking extensions */
 #ifdef WIN32
 #include <sys/locking.h>
-bool localFile::LockFile(Bit8u mode, Bit32u pos, Bit16u size) {
+bool localFile::LockFile(uint8_t mode, uint32_t pos, uint16_t size) {
 	HANDLE hFile = (HANDLE)_get_osfhandle(_fileno(fhandle));
 	BOOL bRet;
 
@@ -1502,7 +1628,7 @@ bool localFile::LockFile(Bit8u mode, Bit32u pos, Bit16u size) {
 }
 #endif
 
-bool localFile::Seek(Bit32u * pos,Bit32u type) {
+bool localFile::Seek(uint32_t * pos,uint32_t type) {
 	int seektype;
 	switch (type) {
 	case DOS_SEEK_SET:seektype=SEEK_SET;break;
@@ -1512,7 +1638,7 @@ bool localFile::Seek(Bit32u * pos,Bit32u type) {
 	//TODO Give some doserrorcode;
 		return false;//ERROR
 	}
-	int ret=fseek(fhandle,*reinterpret_cast<Bit32s*>(pos),seektype);
+	int ret=fseek(fhandle,*reinterpret_cast<int32_t*>(pos),seektype);
 	if (ret!=0) {
 		// Out of file range, pretend everythings ok 
 		// and move file pointer top end of file... ?! (Black Thorne)
@@ -1521,15 +1647,16 @@ bool localFile::Seek(Bit32u * pos,Bit32u type) {
 #if 0
 	fpos_t temppos;
 	fgetpos(fhandle,&temppos);
-	Bit32u * fake_pos=(Bit32u*)&temppos;
+	uint32_t * fake_pos=(uint32_t*)&temppos;
 	*pos=*fake_pos;
 #endif
-	*pos=(Bit32u)ftell(fhandle);
+	*pos=(uint32_t)ftell(fhandle);
 	last_action=NONE;
 	return true;
 }
 
 bool localFile::Close() {
+    if (!newtime && fhandle && last_action == WRITE) UpdateLocalDateTime();
 	if (newtime && fhandle) {
         // force STDIO to flush buffers on this file handle, or else fclose() will write buffered data
         // and cause mtime to reset back to current time.
@@ -1588,13 +1715,13 @@ bool localFile::Close() {
 	return true;
 }
 
-Bit16u localFile::GetInformation(void) {
+uint16_t localFile::GetInformation(void) {
 	return read_only_medium?0x40:0;
 }
 	
 
-Bit32u localFile::GetSeekPos() {
-	return (Bit32u)ftell( fhandle );
+uint32_t localFile::GetSeekPos() {
+	return (uint32_t)ftell( fhandle );
 }
 
 localFile::localFile() {}
@@ -1622,19 +1749,55 @@ bool localFile::UpdateDateTimeFromHost(void) {
 	fstat(fileno(fhandle),&temp_stat);
     const struct tm* ltime;
 	if((ltime=localtime(&temp_stat.st_mtime))!=0) {
-		time=DOS_PackTime((Bit16u)ltime->tm_hour,(Bit16u)ltime->tm_min,(Bit16u)ltime->tm_sec);
-		date=DOS_PackDate((Bit16u)(ltime->tm_year+1900),(Bit16u)(ltime->tm_mon+1),(Bit16u)ltime->tm_mday);
+		time=DOS_PackTime((uint16_t)ltime->tm_hour,(uint16_t)ltime->tm_min,(uint16_t)ltime->tm_sec);
+		date=DOS_PackDate((uint16_t)(ltime->tm_year+1900),(uint16_t)(ltime->tm_mon+1),(uint16_t)ltime->tm_mday);
 	} else {
 		time=1;date=1;
 	}
 	return true;
 }
 
+bool localFile::UpdateLocalDateTime(void) {
+    time_t timet = ::time(NULL);
+    struct tm *tm = localtime(&timet);
+    tm->tm_isdst = -1;
+    uint16_t oldax=reg_ax, oldcx=reg_cx, olddx=reg_dx;
+
+	reg_ah=0x2a; // get system date
+	CALLBACK_RunRealInt(0x21);
+
+	tm->tm_year = reg_cx-1900;
+	tm->tm_mon = reg_dh-1;
+	tm->tm_mday = reg_dl;
+
+	reg_ah=0x2c; // get system time
+	CALLBACK_RunRealInt(0x21);
+
+	tm->tm_hour = reg_ch;
+	tm->tm_min = reg_cl;
+	tm->tm_sec = reg_dh;
+
+    reg_ax=oldax;
+    reg_cx=oldcx;
+    reg_dx=olddx;
+
+    timet = mktime(tm);
+    if (timet == -1)
+        return false;
+    tm = localtime(&timet);
+    time = ((unsigned int)tm->tm_hour << 11u) + ((unsigned int)tm->tm_min << 5u) + ((unsigned int)tm->tm_sec >> 1u);
+    date = (((unsigned int)tm->tm_year - 80u) << 9u) + (((unsigned int)tm->tm_mon + 1u) << 5u) + (unsigned int)tm->tm_mday;
+    newtime = true;
+    return true;
+}
+
+
 void localFile::Flush(void) {
 	if (last_action==WRITE) {
 		fseek(fhandle,ftell(fhandle),SEEK_SET);
         fflush(fhandle);
 		last_action=NONE;
+        if (!newtime) UpdateLocalDateTime();
 	}
 }
 
@@ -1644,12 +1807,12 @@ void localFile::Flush(void) {
 // ********************************************
 
 int  MSCDEX_RemoveDrive(char driveLetter);
-int  MSCDEX_AddDrive(char driveLetter, const char* physicalPath, Bit8u& subUnit);
-bool MSCDEX_HasMediaChanged(Bit8u subUnit);
-bool MSCDEX_GetVolumeName(Bit8u subUnit, char* name);
+int  MSCDEX_AddDrive(char driveLetter, const char* physicalPath, uint8_t& subUnit);
+bool MSCDEX_HasMediaChanged(uint8_t subUnit);
+bool MSCDEX_GetVolumeName(uint8_t subUnit, char* name);
 
 
-cdromDrive::cdromDrive(const char driveLetter, const char * startdir,Bit16u _bytes_sector,Bit8u _sectors_cluster,Bit16u _total_clusters,Bit16u _free_clusters,Bit8u _mediaid, int& error, std::vector<std::string> &options)
+cdromDrive::cdromDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options)
 		   :localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options),
 		    subUnit(0),
 		    driveLetter('\0')
@@ -1664,7 +1827,7 @@ cdromDrive::cdromDrive(const char driveLetter, const char * startdir,Bit16u _byt
 	if (MSCDEX_GetVolumeName(subUnit,name)) dirCache.SetLabel(name,true,true);
 }
 
-bool cdromDrive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
+bool cdromDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
 	if ((flags&0xf)==OPEN_READWRITE) {
 		flags &= ~((unsigned int)OPEN_READWRITE);
 	} else if ((flags&0xf)==OPEN_WRITE) {
@@ -1676,7 +1839,7 @@ bool cdromDrive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
 	return retcode;
 }
 
-bool cdromDrive::FileCreate(DOS_File * * /*file*/,const char * /*name*/,Bit16u /*attributes*/) {
+bool cdromDrive::FileCreate(DOS_File * * /*file*/,const char * /*name*/,uint16_t /*attributes*/) {
 	DOS_SetError(DOSERR_ACCESS_DENIED);
 	return false;
 }
@@ -1701,7 +1864,7 @@ bool cdromDrive::Rename(const char * /*oldname*/,const char * /*newname*/) {
 	return false;
 }
 
-bool cdromDrive::GetFileAttr(const char * name,Bit16u * attr) {
+bool cdromDrive::GetFileAttr(const char * name,uint16_t * attr) {
 	bool result = localDrive::GetFileAttr(name,attr);
 	if (result) *attr |= DOS_ATTR_READ_ONLY;
 	return result;
@@ -1760,6 +1923,610 @@ Bits cdromDrive::UnMount(void) {
 		return 0;
 	}
 	return 2;
+}
+
+PHYSFS_sint64 PHYSFS_fileLength(const char *name) {
+	PHYSFS_file *f = PHYSFS_openRead(name);
+	if (f == NULL) return 0;
+	PHYSFS_sint64 size = PHYSFS_fileLength(f);
+	PHYSFS_close(f);
+	return size;
+}
+
+/* Need to strip "/.." components and transform '\\' to '/' for physfs */
+static char *normalize(char * name, const char *basedir) {
+	int last = strlen(name)-1;
+	strreplace(name,'\\','/');
+	while (last >= 0 && name[last] == '/') name[last--] = 0;
+	if (last > 0 && name[last] == '.' && name[last-1] == '/') name[last-1] = 0;
+	if (last > 1 && name[last] == '.' && name[last-1] == '.' && name[last-2] == '/') {
+		name[last-2] = 0;
+		char *slash = strrchr(name,'/');
+		if (slash) *slash = 0;
+	}
+	if (strlen(basedir) > strlen(name)) { strcpy(name,basedir); strreplace(name,'\\','/'); }
+	last = strlen(name)-1;
+	while (last >= 0 && name[last] == '/') name[last--] = 0;
+	if (name[0] == 0) name[0] = '/';
+	//LOG_MSG("File access: %s",name);
+	return name;
+}
+
+class physfsFile : public DOS_File {
+public:
+	physfsFile(const char* name, PHYSFS_file * handle,uint16_t devinfo, const char* physname, bool write);
+	bool Read(uint8_t * data,uint16_t * size);
+	bool Write(const uint8_t * data,uint16_t * size);
+	bool Seek(uint32_t * pos,uint32_t type);
+	bool Close();
+	uint16_t GetInformation(void);
+	bool UpdateDateTimeFromHost(void);
+private:
+	PHYSFS_file * fhandle;
+	enum { READ,WRITE } last_action;
+	uint16_t info;
+	char pname[CROSS_LEN];
+};
+
+bool physfsDrive::AllocationInfo(uint16_t * _bytes_sector,uint8_t * _sectors_cluster,uint16_t * _total_clusters,uint16_t * _free_clusters) {
+	/* Always report 100 mb free should be enough */
+	/* Total size is always 1 gb */
+	*_bytes_sector=allocation.bytes_sector;
+	*_sectors_cluster=allocation.sectors_cluster;
+	*_total_clusters=allocation.total_clusters;
+	*_free_clusters=0;
+	return true;
+}
+
+bool physfsDrive::FileExists(const char* name) {
+	char newname[CROSS_LEN];
+	strcpy(newname,basedir);
+	strcat(newname,name);
+	CROSS_FILENAME(newname);
+	dirCache.ExpandName(newname);
+	normalize(newname,basedir);
+	return PHYSFS_exists(newname) && !PHYSFS_isDirectory(newname);
+}
+
+bool physfsDrive::FileStat(const char* name, FileStat_Block * const stat_block) {
+	char newname[CROSS_LEN];
+	strcpy(newname,basedir);
+	strcat(newname,name);
+	CROSS_FILENAME(newname);
+	dirCache.ExpandName(newname);
+	normalize(newname,basedir);
+	time_t mytime = PHYSFS_getLastModTime(newname);
+	/* Convert the stat to a FileStat */
+	struct tm *time;
+	if((time=localtime(&mytime))!=0) {
+		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+	} else {
+		stat_block->time=DOS_PackTime(0,0,0);
+		stat_block->date=DOS_PackDate(1980,1,1);
+	}
+	stat_block->size=(uint32_t)PHYSFS_fileLength(newname);
+	return true;
+}
+
+struct opendirinfo {
+	char dir[CROSS_LEN];
+	char **files;
+	int pos;
+};
+
+/* helper functions for drive cache */
+bool physfsDrive::isdir(const char *name) {
+	char myname[CROSS_LEN];
+	strcpy(myname,name);
+	normalize(myname,basedir);
+	return PHYSFS_isDirectory(myname);
+}
+
+void *physfsDrive::opendir(const char *name) {
+	char myname[CROSS_LEN];
+	strcpy(myname,name);
+	normalize(myname,basedir);
+	if (!PHYSFS_isDirectory(myname)) return NULL;
+
+	struct opendirinfo *oinfo = (struct opendirinfo *)malloc(sizeof(struct opendirinfo));
+	strcpy(oinfo->dir, myname);
+	oinfo->files = PHYSFS_enumerateFiles(myname);
+	if (oinfo->files == NULL) {
+		LOG_MSG("PHYSFS: nothing found for %s (%s)",myname,PHYSFS_getLastError());
+		free(oinfo);
+		return NULL;
+	}
+
+	oinfo->pos = (myname[4] == 0?0:-2);
+	return (void *)oinfo;
+}
+
+void physfsDrive::closedir(void *handle) {
+	struct opendirinfo *oinfo = (struct opendirinfo *)handle;
+	if (handle == NULL) return;
+	if (oinfo->files != NULL) PHYSFS_freeList(oinfo->files);
+	free(oinfo);
+}
+
+bool physfsDrive::read_directory_first(void* dirp, char* entry_name, char* entry_sname, bool& is_directory) {
+	return read_directory_next(dirp, entry_name, entry_sname, is_directory);
+}
+
+bool physfsDrive::read_directory_next(void* dirp, char* entry_name, char* entry_sname, bool& is_directory) {
+	struct opendirinfo *oinfo = (struct opendirinfo *)dirp;
+	if (!oinfo) return false;
+	if (oinfo->pos == -2) {
+		oinfo->pos++;
+		safe_strncpy(entry_name,".",CROSS_LEN);
+		safe_strncpy(entry_sname,".",DOS_NAMELENGTH+1);
+		is_directory = true;
+		return true;
+	}
+	if (oinfo->pos == -1) {
+		oinfo->pos++;
+		safe_strncpy(entry_name,"..",CROSS_LEN);
+		safe_strncpy(entry_sname,"..",DOS_NAMELENGTH+1);
+		is_directory = true;
+		return true;
+	}
+	if (!oinfo->files || !oinfo->files[oinfo->pos]) return false;
+	safe_strncpy(entry_name,oinfo->files[oinfo->pos++],CROSS_LEN);
+	*entry_sname=0;
+	is_directory = isdir(strlen(oinfo->dir)?(std::string(oinfo->dir)+"/"+std::string(entry_name)).c_str():entry_name);
+	return true;
+}
+
+static uint8_t physfs_used = 0;
+physfsDrive::physfsDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid,int &error,std::vector<std::string> &options)
+		   :localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options)
+{
+	this->driveLetter = driveLetter;
+	this->mountarc = "";
+	char mp[3] = {'_', driveLetter, 0};
+	char newname[CROSS_LEN+1];
+	strcpy(newname,startdir);
+	CROSS_FILENAME(newname);
+	if (!physfs_used) {
+		PHYSFS_init("");
+		PHYSFS_permitSymbolicLinks(1);
+	}
+
+	physfs_used++;
+	char *lastdir = newname;
+	char *dir = strchr(lastdir+(((lastdir[0]|0x20) >= 'a' && (lastdir[0]|0x20) <= 'z')?2:0),':');
+	while (dir) {
+		*dir++ = 0;
+		if((lastdir == newname) && !strchr(dir+(((dir[0]|0x20) >= 'a' && (dir[0]|0x20) <= 'z')?2:0),':')) {
+			// If the first parameter is a directory, the next one has to be the archive file,
+			// do not confuse it with basedir if trailing : is not there!
+			int tmp = strlen(dir)-1;
+			dir[tmp++] = ':';
+			dir[tmp++] = CROSS_FILESPLIT;
+			dir[tmp] = '\0';
+		}
+		if (*lastdir) {
+            if (PHYSFS_mount(lastdir,mp,true) == 0)
+                LOG_MSG("PHYSFS couldn't mount '%s': %s",lastdir,PHYSFS_getLastError());
+            else {
+                if (mountarc.size()) mountarc+=", ";
+                mountarc+= lastdir;
+            }
+        }
+		lastdir = dir;
+		dir = strchr(lastdir+(((lastdir[0]|0x20) >= 'a' && (lastdir[0]|0x20) <= 'z')?2:0),':');
+	}
+	error = 0;
+	if (!mountarc.size()) {error = 10;return;}
+	strcpy(basedir,"\\");
+	strcat(basedir,mp);
+	strcat(basedir,"\\");
+
+	allocation.bytes_sector=_bytes_sector;
+	allocation.sectors_cluster=_sectors_cluster;
+	allocation.total_clusters=_total_clusters;
+	allocation.free_clusters=_free_clusters;
+	allocation.mediaid=_mediaid;
+
+	dirCache.SetBaseDir(basedir, this);
+}
+
+physfsDrive::~physfsDrive(void) {
+	if(!physfs_used) {
+		LOG_MSG("PHYSFS invalid reference count!");
+		return;
+	}
+	physfs_used--;
+	if(!physfs_used) {
+		LOG_MSG("PHYSFS calling PHYSFS_deinit()");
+		PHYSFS_deinit();
+	}
+}
+
+const char *physfsDrive::GetInfo() {
+	sprintf(info,"PhysFS directory %s", mountarc.c_str());
+	return info;
+}
+
+bool physfsDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
+	char newname[CROSS_LEN];
+	strcpy(newname,basedir);
+	strcat(newname,name);
+	CROSS_FILENAME(newname);
+	dirCache.ExpandName(newname);
+	normalize(newname,basedir);
+
+	PHYSFS_file * hand;
+	if (!PHYSFS_exists(newname)) return false;
+	if ((flags&0xf) == OPEN_READ) {
+		hand = PHYSFS_openRead(newname);
+	} else {
+
+		/* open for reading, deal with writing later */
+		hand = PHYSFS_openRead(newname);
+	}
+
+	if (!hand) {
+		if((flags&0xf) != OPEN_READ) {
+			PHYSFS_file *hmm = PHYSFS_openRead(newname);
+			if (hmm) {
+				PHYSFS_close(hmm);
+				LOG_MSG("Warning: file %s exists and failed to open in write mode.",newname);
+			}
+		}
+		return false;
+	}
+
+	*file=new physfsFile(name,hand,0x202,newname,false);
+	(*file)->flags=flags;  //for the inheritance flag and maybe check for others.
+	return true;
+}
+
+bool physfsDrive::FileCreate(DOS_File * * /*file*/,const char * /*name*/,uint16_t /*attributes*/) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::FileUnlink(const char * /*name*/) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::RemoveDir(const char * /*dir*/) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::MakeDir(const char * /*dir*/) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::TestDir(const char * dir) {
+	char newdir[CROSS_LEN];
+	strcpy(newdir,basedir);
+	strcat(newdir,dir);
+	CROSS_FILENAME(newdir);
+	dirCache.ExpandName(newdir);
+	normalize(newdir,basedir);
+	return (PHYSFS_isDirectory(newdir));
+}
+
+bool physfsDrive::Rename(const char * /*oldname*/,const char * /*newname*/) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::SetFileAttr(const char * name,uint16_t attr) {
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+}
+
+bool physfsDrive::GetFileAttr(const char * name,uint16_t * attr) {
+	char newname[CROSS_LEN];
+	strcpy(newname,basedir);
+	strcat(newname,name);
+	CROSS_FILENAME(newname);
+	dirCache.ExpandName(newname);
+	normalize(newname,basedir);
+	char *last = strrchr(newname,'/');
+	if (last == NULL) last = newname-1;
+
+	*attr = 0;
+	if (!PHYSFS_exists(newname)) return false;
+	*attr=DOS_ATTR_ARCHIVE;
+	if (PHYSFS_isDirectory(newname)) *attr|=DOS_ATTR_DIRECTORY;
+    return true;
+}
+
+bool physfsDrive::GetFileAttrEx(char* name, struct stat *status) {
+	return localDrive::GetFileAttrEx(name,status);
+}
+
+unsigned long physfsDrive::GetCompressedSize(char* name) {
+	return localDrive::GetCompressedSize(name);
+}
+
+#if defined (WIN32)
+HANDLE physfsDrive::CreateOpenFile(const char* name) {
+		return localDrive::CreateOpenFile(name);
+}
+
+unsigned long physfsDrive::GetSerial() {
+		return localDrive::GetSerial();
+}
+#endif
+
+bool physfsDrive::FindNext(DOS_DTA & dta) {
+	char * dir_ent, *ldir_ent;
+	char full_name[CROSS_LEN], lfull_name[LFN_NAMELENGTH+1];
+
+	uint8_t srch_attr;char srch_pattern[DOS_NAMELENGTH_ASCII];
+	uint8_t find_attr;
+
+    dta.GetSearchParams(srch_attr,srch_pattern,uselfn);
+	uint16_t id = lfn_filefind_handle>=LFN_FILEFIND_MAX?dta.GetDirID():ldid[lfn_filefind_handle];
+
+again:
+    if (!dirCache.FindNext(id,dir_ent,ldir_ent)) {
+		if (lfn_filefind_handle<LFN_FILEFIND_MAX) {
+			ldid[lfn_filefind_handle]=0;
+			ldir[lfn_filefind_handle]="";
+		}
+		DOS_SetError(DOSERR_NO_MORE_FILES);
+		return false;
+	}
+    if(!WildFileCmp(dir_ent,srch_pattern)&&!LWildFileCmp(ldir_ent,srch_pattern)) goto again;
+
+	strcpy(full_name,lfn_filefind_handle>=LFN_FILEFIND_MAX?srchInfo[id].srch_dir:ldir[lfn_filefind_handle].c_str());
+	strcpy(lfull_name,full_name);
+
+	strcat(full_name,dir_ent);
+    strcat(lfull_name,ldir_ent);
+
+	//GetExpandName might indirectly destroy dir_ent (by caching in a new directory
+	//and due to its design dir_ent might be lost.)
+	//Copying dir_ent first
+	dirCache.ExpandName(lfull_name);
+	normalize(lfull_name,basedir);
+
+	if (PHYSFS_isDirectory(lfull_name)) find_attr=DOS_ATTR_DIRECTORY|DOS_ATTR_ARCHIVE;
+	else find_attr=DOS_ATTR_ARCHIVE;
+	if (~srch_attr & find_attr & (DOS_ATTR_DIRECTORY | DOS_ATTR_HIDDEN | DOS_ATTR_SYSTEM)) goto again;
+
+	/*file is okay, setup everything to be copied in DTA Block */
+	char find_name[DOS_NAMELENGTH_ASCII], lfind_name[LFN_NAMELENGTH+1];
+	uint16_t find_date,find_time;uint32_t find_size;
+	find_size=(uint32_t)PHYSFS_fileLength(lfull_name);
+	time_t mytime = PHYSFS_getLastModTime(lfull_name);
+	struct tm *time;
+	if((time=localtime(&mytime))!=0){
+		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+	} else {
+		find_time=6;
+		find_date=4;
+	}
+	if(strlen(dir_ent)<DOS_NAMELENGTH_ASCII){
+		strcpy(find_name,dir_ent);
+		upcase(find_name);
+	}
+	strcpy(lfind_name,ldir_ent);
+	lfind_name[LFN_NAMELENGTH]=0;
+
+	dta.SetResult(find_name,lfind_name,find_size,find_date,find_time,find_attr);
+	return true;
+}
+
+bool physfsDrive::FindFirst(const char * _dir,DOS_DTA & dta,bool /*fcb_findfirst*/) {
+	return localDrive::FindFirst(_dir,dta);
+}
+
+bool physfsDrive::isRemote(void) {
+	return localDrive::isRemote();
+}
+
+bool physfsDrive::isRemovable(void) {
+	return true;
+}
+
+Bits physfsDrive::UnMount(void) {
+	char mp[3] = {'_', driveLetter, 0};
+	PHYSFS_unmount(mp);
+	delete this;
+	return 0;
+}
+
+bool physfsFile::Read(uint8_t * data,uint16_t * size) {
+	if ((this->flags & 0xf) == OPEN_WRITE) {        // check if file opened in write-only mode
+		DOS_SetError(DOSERR_ACCESS_DENIED);
+		return false;
+	}
+	last_action=READ;
+	PHYSFS_sint64 mysize = PHYSFS_read(fhandle,data,1,(PHYSFS_uint64)*size);
+	//LOG_MSG("Read %i bytes (wanted %i) at %i of %s (%s)",(int)mysize,(int)*size,(int)PHYSFS_tell(fhandle),name,PHYSFS_getLastError());
+	*size = (uint16_t)mysize;
+	return true;
+}
+
+bool physfsFile::Write(const uint8_t * data,uint16_t * size) {
+    DOS_SetError(DOSERR_ACCESS_DENIED);
+    return false;
+}
+
+bool physfsFile::Seek(uint32_t * pos,uint32_t type) {
+	PHYSFS_sint64 mypos = (int32_t)*pos;
+	switch (type) {
+	case DOS_SEEK_SET:break;
+	case DOS_SEEK_CUR:mypos += PHYSFS_tell(fhandle); break;
+	case DOS_SEEK_END:mypos += PHYSFS_fileLength(fhandle);-mypos; break;
+	default:
+	//TODO Give some doserrorcode;
+		return false;//ERROR
+	}
+
+	if (!PHYSFS_seek(fhandle,mypos)) {
+		// Out of file range, pretend everythings ok
+		// and move file pointer top end of file... ?! (Black Thorne)
+		PHYSFS_seek(fhandle,PHYSFS_fileLength(fhandle));
+	};
+	//LOG_MSG("Seek to %i (%i at %x) of %s (%s)",(int)mypos,(int)*pos,type,name,PHYSFS_getLastError());
+
+	*pos=(uint32_t)PHYSFS_tell(fhandle);
+	return true;
+}
+
+bool physfsFile::Close() {
+	// only close if one reference left
+	if (refCtr==1) {
+		PHYSFS_close(fhandle);
+		fhandle = 0;
+		open = false;
+	};
+	return true;
+}
+
+uint16_t physfsFile::GetInformation(void) {
+	return info;
+}
+
+physfsFile::physfsFile(const char* _name, PHYSFS_file * handle,uint16_t devinfo, const char* physname, bool write) {
+	fhandle=handle;
+	info=devinfo;
+	strcpy(pname,physname);
+	time_t mytime = PHYSFS_getLastModTime(pname);
+	/* Convert the stat to a FileStat */
+	struct tm *time;
+	if((time=localtime(&mytime))!=0) {
+		this->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+		this->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+	} else {
+		this->time=DOS_PackTime(0,0,0);
+		this->date=DOS_PackDate(1980,1,1);
+	}
+
+	attr=DOS_ATTR_ARCHIVE;
+	last_action=(write?WRITE:READ);
+
+	open=true;
+	name=0;
+	SetName(_name);
+}
+
+bool physfsFile::UpdateDateTimeFromHost(void) {
+	if(!open) return false;
+	time_t mytime = PHYSFS_getLastModTime(pname);
+	/* Convert the stat to a FileStat */
+	struct tm *time;
+	if((time=localtime(&mytime))!=0) {
+		this->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+		this->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+	} else {
+		this->time=DOS_PackTime(0,0,0);
+		this->date=DOS_PackDate(1980,1,1);
+	}
+	return true;
+}
+
+physfscdromDrive::physfscdromDrive(const char driveLetter, const char * startdir,uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid, int& error, std::vector<std::string> &options)
+		   :physfsDrive(driveLetter,startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,error,options)
+{
+	// Init mscdex
+	if (!mountarc.size()) {error = 10;return;}
+	error = MSCDEX_AddDrive(driveLetter,startdir,subUnit);
+	this->driveLetter = driveLetter;
+	// Get Volume Label
+	char name[32];
+	if (MSCDEX_GetVolumeName(subUnit,name)) dirCache.SetLabel(name,true,true);
+};
+
+const char *physfscdromDrive::GetInfo() {
+	sprintf(info,"PhysFS CDRom %s", mountarc.c_str());
+	return info;
+}
+
+bool physfscdromDrive::FileOpen(DOS_File * * file,const char * name,uint32_t flags)
+{
+	if ((flags&0xf)==OPEN_READWRITE) {
+		flags &= ~OPEN_READWRITE;
+	} else if ((flags&0xf)==OPEN_WRITE) {
+		DOS_SetError(DOSERR_ACCESS_DENIED);
+		return false;
+	}
+	return physfsDrive::FileOpen(file,name,flags);
+};
+
+bool physfscdromDrive::FileCreate(DOS_File * * file,const char * name,uint16_t attributes)
+{
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+};
+
+bool physfscdromDrive::FileUnlink(const char * name)
+{
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+};
+
+bool physfscdromDrive::RemoveDir(const char * dir)
+{
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+};
+
+bool physfscdromDrive::MakeDir(const char * dir)
+{
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+};
+
+bool physfscdromDrive::Rename(const char * oldname,const char * newname)
+{
+	DOS_SetError(DOSERR_ACCESS_DENIED);
+	return false;
+};
+
+bool physfscdromDrive::GetFileAttr(const char * name,uint16_t * attr)
+{
+	bool result = physfsDrive::GetFileAttr(name,attr);
+	if (result) *attr |= DOS_ATTR_READ_ONLY;
+	return result;
+};
+
+bool physfscdromDrive::FindFirst(const char * _dir,DOS_DTA & dta,bool fcb_findfirst)
+{
+	// If media has changed, reInit drivecache.
+	if (MSCDEX_HasMediaChanged(subUnit)) {
+		dirCache.EmptyCache();
+		// Get Volume Label
+		char name[32];
+		if (MSCDEX_GetVolumeName(subUnit,name)) dirCache.SetLabel(name,true,true);
+	}
+	return physfsDrive::FindFirst(_dir,dta);
+};
+
+void physfscdromDrive::SetDir(const char* path)
+{
+	// If media has changed, reInit drivecache.
+	if (MSCDEX_HasMediaChanged(subUnit)) {
+		dirCache.EmptyCache();
+		// Get Volume Label
+		char name[32];
+		if (MSCDEX_GetVolumeName(subUnit,name)) dirCache.SetLabel(name,true,true);
+	}
+	physfsDrive::SetDir(path);
+};
+
+bool physfscdromDrive::isRemote(void) {
+	return true;
+}
+
+bool physfscdromDrive::isRemovable(void) {
+	return true;
+}
+
+Bits physfscdromDrive::UnMount(void) {
+	return true;
 }
 
 #define OVERLAY_DIR 1
@@ -1871,7 +2638,7 @@ bool Overlay_Drive::RemoveDir(const char * dir) {
 		}
 		return (temp == 0);
 	} else {
-		Bit16u olderror = dos.errorcode; //FindFirst/Next always set an errorcode, while RemoveDir itself shouldn't touch it if successful
+		uint16_t olderror = dos.errorcode; //FindFirst/Next always set an errorcode, while RemoveDir itself shouldn't touch it if successful
 		DOS_DTA dta(dos.tables.tempdta);
 		char stardotstar[4] = {'*', '.', '*', 0};
 		dta.SetupSearch(0,(0xff & ~DOS_ATTR_VOLUME),stardotstar); //Fake drive as we don't use it.
@@ -1883,7 +2650,7 @@ bool Overlay_Drive::RemoveDir(const char * dir) {
 		}
 		bool empty = true;
 		do {
-			char name[DOS_NAMELENGTH_ASCII],lname[LFN_NAMELENGTH];Bit32u size;Bit16u date;Bit16u time;Bit8u attr;
+			char name[DOS_NAMELENGTH_ASCII],lname[LFN_NAMELENGTH];uint32_t size;uint16_t date;uint16_t time;uint8_t attr;
 			dta.GetResult(name,lname,size,date,time,attr);
 			if (logoverlay) LOG_MSG("RemoveDir found %s",name);
 			if (empty && strcmp(".",name ) && strcmp("..",name)) 
@@ -2051,14 +2818,14 @@ public:
 		overlay_active = false;
 		if (logoverlay) LOG_MSG("constructing OverlayFile: %s",name);
 	}
-	bool Write(const Bit8u * data,Bit16u * size) {
-		Bit32u f = flags&0xf;
+	bool Write(const uint8_t * data,uint16_t * size) {
+		uint32_t f = flags&0xf;
 		if (!overlay_active && (f == OPEN_READWRITE || f == OPEN_WRITE)) {
 			if (logoverlay) LOG_MSG("write detected, switching file for %s",GetName());
 			if (*data == 0) {
 				if (logoverlay) LOG_MSG("OPTIMISE: truncate on switch!!!!");
 			}
-			Bit32u a = GetTicks();
+			uint32_t a = GetTicks();
 			bool r = create_copy();
 			if (GetTicks() - a > 2) {
 				if (logoverlay) LOG_MSG("OPTIMISE: switching took %d",GetTicks() - a);
@@ -2175,7 +2942,7 @@ bool OverlayFile::create_copy() {
 	fseek(lhandle,0L,SEEK_SET);
 	
 	FILE* newhandle = NULL;
-	Bit8u drive_set = GetDrive();
+	uint8_t drive_set = GetDrive();
 	if (drive_set != 0xff && drive_set < DOS_DRIVES && Drives[drive_set]){
 		Overlay_Drive* od = dynamic_cast<Overlay_Drive*>(Drives[drive_set]);
 		if (od) {
@@ -2208,7 +2975,7 @@ static OverlayFile* ccc(DOS_File* file) {
 	return ret;
 }
 
-Overlay_Drive::Overlay_Drive(const char * startdir,const char* overlay, Bit16u _bytes_sector,Bit8u _sectors_cluster,Bit16u _total_clusters,Bit16u _free_clusters,Bit8u _mediaid,Bit8u &error,std::vector<std::string> &options)
+Overlay_Drive::Overlay_Drive(const char * startdir,const char* overlay, uint16_t _bytes_sector,uint8_t _sectors_cluster,uint16_t _total_clusters,uint16_t _free_clusters,uint8_t _mediaid,uint8_t &error,std::vector<std::string> &options)
 :localDrive(startdir,_bytes_sector,_sectors_cluster,_total_clusters,_free_clusters,_mediaid,options),special_prefix("$DBOVERLAY") {
 	optimize_cache_v1 = true; //Try to not reread overlay files on deletes. Ideally drive_cache should be improved to handle deletes properly.
 	//Currently this flag does nothing, as the current behavior is to not reread due to caching everything.
@@ -2293,7 +3060,7 @@ void Overlay_Drive::convert_overlay_to_DOSname_in_base(char* dirname )
 	}
 }
 
-bool Overlay_Drive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
+bool Overlay_Drive::FileOpen(DOS_File * * file,const char * name,uint32_t flags) {
 	if (ovlnocachedir) {
 		dirCache.EmptyCache();
 		update_cache(true);
@@ -2317,7 +3084,7 @@ bool Overlay_Drive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
 	}
 
 	//Flush the buffer of handles for the same file. (Betrayal in Antara)
-	Bit8u i,drive = DOS_DRIVES;
+	uint8_t i,drive = DOS_DRIVES;
 	localFile *lfp;
 	for (i=0;i<DOS_DRIVES;i++) {
 		if (Drives[i]==this) {
@@ -2391,7 +3158,7 @@ bool Overlay_Drive::FileOpen(DOS_File * * file,const char * name,Bit32u flags) {
 	return fileopened;
 }
 
-bool Overlay_Drive::FileCreate(DOS_File * * file,const char * name,Bit16u /*attributes*/) {
+bool Overlay_Drive::FileCreate(DOS_File * * file,const char * name,uint16_t /*attributes*/) {
 	if (ovlnocachedir) {
 		dirCache.EmptyCache();
 		update_cache(true);
@@ -2498,7 +3265,7 @@ bool Overlay_Drive::Sync_leading_dirs(const char* dos_filename){
 }
 
 void Overlay_Drive::update_cache(bool read_directory_contents) {
-	Bit32u a = GetTicks();
+	uint32_t a = GetTicks();
 	std::vector<std::string> specials;
 	std::vector<std::string> dirnames;
 	std::vector<std::string> filenames;
@@ -2738,11 +3505,11 @@ bool Overlay_Drive::FindNext(DOS_DTA & dta) {
 	char full_name[CROSS_LEN], lfull_name[LFN_NAMELENGTH+1];
 	char dir_entcopy[CROSS_LEN], ldir_entcopy[CROSS_LEN];
 
-	Bit8u srch_attr;char srch_pattern[DOS_NAMELENGTH_ASCII];
-	Bit8u find_attr;
+	uint8_t srch_attr;char srch_pattern[DOS_NAMELENGTH_ASCII];
+	uint8_t find_attr;
 
 	dta.GetSearchParams(srch_attr,srch_pattern,uselfn);
-	Bit16u id = lfn_filefind_handle>=LFN_FILEFIND_MAX?dta.GetDirID():ldid[lfn_filefind_handle];
+	uint16_t id = lfn_filefind_handle>=LFN_FILEFIND_MAX?dta.GetDirID():ldid[lfn_filefind_handle];
 
 again:
 	if (!dirCache.FindNext(id,dir_ent,ldir_ent)) {
@@ -2818,14 +3585,14 @@ again:
 	if (attribs != INVALID_FILE_ATTRIBUTES)
 		find_attr|=attribs&0x3f;
 #else
-	find_attr|=DOS_ATTR_ARCHIVE;
+	if (!(find_attr&DOS_ATTR_DIRECTORY)) find_attr|=DOS_ATTR_ARCHIVE;
 	if(!(stat_block.st_mode & S_IWUSR)) find_attr|=DOS_ATTR_READ_ONLY;
 #endif
  	if (~srch_attr & find_attr & DOS_ATTR_DIRECTORY) goto again;
 	
 	/* file is okay, setup everything to be copied in DTA Block */
 	char find_name[DOS_NAMELENGTH_ASCII], lfind_name[LFN_NAMELENGTH+1];
-	Bit16u find_date,find_time;Bit32u find_size;
+	uint16_t find_date,find_time;uint32_t find_size;
 
 	if(strlen(dir_entcopy)<DOS_NAMELENGTH_ASCII){
 		strcpy(find_name,dir_entcopy);
@@ -2834,11 +3601,11 @@ again:
 	strcpy(lfind_name,ldir_entcopy);
     lfind_name[LFN_NAMELENGTH]=0;
 
-	find_size=(Bit32u) stat_block.st_size;
+	find_size=(uint32_t) stat_block.st_size;
 	struct tm *time;
 	if((time=localtime(&stat_block.st_mtime))!=0){
-		find_date=DOS_PackDate((Bit16u)(time->tm_year+1900),(Bit16u)(time->tm_mon+1),(Bit16u)time->tm_mday);
-		find_time=DOS_PackTime((Bit16u)time->tm_hour,(Bit16u)time->tm_min,(Bit16u)time->tm_sec);
+		find_date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
+		find_time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
 	} else {
 		find_time=6; 
 		find_date=4;
@@ -2854,7 +3621,7 @@ bool Overlay_Drive::FileUnlink(const char * name) {
     }
 
 //TODO check the basedir for file existence in order if we need to add the file to deleted file list.
-	Bit32u a = GetTicks();
+	uint32_t a = GetTicks();
 	if (logoverlay) LOG_MSG("calling unlink on %s",name);
 	char basename[CROSS_LEN];
 	strcpy(basename,basedir);
@@ -2949,7 +3716,7 @@ bool Overlay_Drive::FileUnlink(const char * name) {
 	}
 }
 
-bool Overlay_Drive::SetFileAttr(const char * name,Bit16u attr) {
+bool Overlay_Drive::SetFileAttr(const char * name,uint16_t attr) {
 	char overlayname[CROSS_LEN], tmp[CROSS_LEN], overtmpname[CROSS_LEN];
 	strcpy(overlayname,overlaydir);
 	strcat(overlayname,name);
@@ -3086,7 +3853,7 @@ bool Overlay_Drive::SetFileAttr(const char * name,Bit16u attr) {
 	return false;
 }
 
-bool Overlay_Drive::GetFileAttr(const char * name,Bit16u * attr) {
+bool Overlay_Drive::GetFileAttr(const char * name,uint16_t * attr) {
 	if (ovlnocachedir) {
 		dirCache.EmptyCache();
 		update_cache(true);
@@ -3127,7 +3894,7 @@ bool Overlay_Drive::GetFileAttr(const char * name,Bit16u * attr) {
 #else
 	ht_stat_t status;
 	if (ht_stat(overtmpname,&status)==0 || ht_stat(overlayname,&status)==0) {
-		*attr=DOS_ATTR_ARCHIVE;
+		*attr=status.st_mode & S_IFDIR?0:DOS_ATTR_ARCHIVE;
 		if(status.st_mode & S_IFDIR) *attr|=DOS_ATTR_DIRECTORY;
 		if(!(status.st_mode & S_IWUSR)) *attr|=DOS_ATTR_READ_ONLY;
 		return true;
@@ -3424,7 +4191,7 @@ bool Overlay_Drive::Rename(const char * oldname,const char * newname) {
 	
 	char tmp[CROSS_LEN];
 	host_cnv_char_t host_nameold[CROSS_LEN], host_namenew[CROSS_LEN];
-	Bit16u attr = 0;
+	uint16_t attr = 0;
 	if (!GetFileAttr(oldname,&attr)) E_Exit("rename, but source doesn't exist, should not happen %s",oldname);
 	ht_stat_t temp_stat;
 	if (attr&DOS_ATTR_DIRECTORY) {
@@ -3505,7 +4272,7 @@ bool Overlay_Drive::Rename(const char * oldname,const char * newname) {
 		return false;
 	}
 
-	Bit32u a = GetTicks();
+	uint32_t a = GetTicks();
 	//First generate overlay names.
 	char overlaynameold[CROSS_LEN];
 	strcpy(overlaynameold,overlaydir);
@@ -3574,7 +4341,7 @@ bool Overlay_Drive::Rename(const char * oldname,const char * newname) {
 		//TODO CHECK if base has a file with same oldname!!!!! if it does mark it as deleted!!
 		if (localDrive::FileExists(oldname)) add_deleted_file(oldname,true);
 	} else {
-		Bit32u aa = GetTicks();
+		uint32_t aa = GetTicks();
 		//File exists in the basedrive. Make a copy and mark old one as deleted.
 		char newold[CROSS_LEN];
 		strcpy(newold,basedir);
@@ -3716,12 +4483,12 @@ bool Overlay_Drive::FileStat(const char* name, FileStat_Block * const stat_block
 	/* Convert the stat to a FileStat */
 	struct tm *time;
 	if((time=localtime(&temp_stat.st_mtime))!=0) {
-		stat_block->time=DOS_PackTime((Bit16u)time->tm_hour,(Bit16u)time->tm_min,(Bit16u)time->tm_sec);
-		stat_block->date=DOS_PackDate((Bit16u)(time->tm_year+1900),(Bit16u)(time->tm_mon+1),(Bit16u)time->tm_mday);
+		stat_block->time=DOS_PackTime((uint16_t)time->tm_hour,(uint16_t)time->tm_min,(uint16_t)time->tm_sec);
+		stat_block->date=DOS_PackDate((uint16_t)(time->tm_year+1900),(uint16_t)(time->tm_mon+1),(uint16_t)time->tm_mday);
 	} else {
 			// ... But this function is not used at the moment.
 	}
-	stat_block->size=(Bit32u)temp_stat.st_size;
+	stat_block->size=(uint32_t)temp_stat.st_size;
 	return true;
 }
 

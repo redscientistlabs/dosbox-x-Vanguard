@@ -276,6 +276,8 @@ include_directories("src/hardware/snd_pc98/sound")
 include_directories("src/hardware/snd_pc98/sound/getsnd")
 include_directories("src/hardware/snd_pc98/x11")
 include_directories("${ZLIB_INCLUDE_DIR}/SDL2") # nasty hack (vcpkg-specific)
+string(REGEX REPLACE "/RTC(su|[1su])" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+string(REGEX REPLACE "/RTC(su|[1su])" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 
 if (NOT MSVC)
 	# x86 intrinsic include in src/mt32/mmath.h fails on bare i686 target

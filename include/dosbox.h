@@ -130,8 +130,8 @@ extern bool				DEPRECATED mainline_compatible_mapping;
 extern bool				DEPRECATED mainline_compatible_bios_mapping;
 
 #ifdef __SSE__
-extern bool				sse1_available;
 extern bool				sse2_available;
+extern bool				avx2_available;
 #endif
 
 void					MSG_Add(const char*,const char*); //add messages to the internal languagefile
@@ -196,8 +196,8 @@ enum {
     BOOTHAX_MSDOS
 };
 
-extern Bit32u guest_msdos_LoL;
-extern Bit16u guest_msdos_mcb_chain;
+extern uint32_t guest_msdos_LoL;
+extern uint16_t guest_msdos_mcb_chain;
 extern int boothax;
 
 /* C++11 user-defined literal, to help with byte units */
@@ -293,12 +293,13 @@ public:
     static SaveState& instance();
 
    typedef std::string Error;
-    static const size_t SLOT_COUNT = 10; //slot: [0,...,SLOT_COUNT - 1]
+    static const size_t MAX_PAGE = 10, SLOT_COUNT = 10; //slot: [0,...,SLOT_COUNT - 1]
 
     void save   (size_t slot);       //throw (Error)
     void load   (size_t slot) const; //throw (Error)
     bool isEmpty(size_t slot) const;
-    std::string getName(size_t slot) const;
+    void removeState(size_t slot) const;
+    std::string getName(size_t slot, bool nl=false) const;
 
     //initialization: register relevant components on program startup
     struct Component
@@ -330,7 +331,7 @@ private:
 
     struct CompData
     {
-        CompData(Component& cmp) : comp(cmp), rawBytes(SLOT_COUNT) {}
+        CompData(Component& cmp) : comp(cmp), rawBytes(MAX_PAGE*SLOT_COUNT) {}
         Component& comp;
         std::vector<RawBytes> rawBytes;
     };

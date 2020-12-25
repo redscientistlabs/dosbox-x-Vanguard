@@ -124,10 +124,10 @@ static void IllegalOptionDynrec(const char* msg) {
 }
 
 static struct {
-	BlockReturn (*runcode)(Bit8u*);		// points to code that can start a block
+	BlockReturn (*runcode)(uint8_t*);		// points to code that can start a block
 	Bitu callback;				// the occurred callback
 	Bitu readdata;				// spare space used when reading from memory
-	Bit32u protected_regs[8];	// space to save/restore register values
+	uint32_t protected_regs[8];	// space to save/restore register values
 } core_dynrec;
 
 
@@ -199,7 +199,7 @@ static bool winrt_warning = true;
 CacheBlockDynRec * LinkBlocks(BlockReturn ret) {
 	CacheBlockDynRec * block=NULL;
 	// the last instruction was a control flow modifying instruction
-	Bit32u temp_ip=SegPhys(cs)+reg_eip;
+	uint32_t temp_ip=SegPhys(cs)+reg_eip;
 	CodePageHandlerDynRec * temp_handler=(CodePageHandlerDynRec *)get_tlb_readhandler(temp_ip);
 	if (temp_handler->flags & PFLAG_HASCODE) {
 		// see if the target is an already translated block
@@ -306,7 +306,7 @@ run_block:
 		cache.block.running=0;
 		// now we're ready to run the dynamic code block
 //		BlockReturn ret=((BlockReturn (*)(void))(block->cache.start))();
-		BlockReturn ret=core_dynrec.runcode(block->cache.start);
+		BlockReturn ret=core_dynrec.runcode(block->cache.xstart);
 
         if (sizeof(CPU_Cycles) > 4) {
             // HACK: All dynrec cores for each processor assume CPU_Cycles is 32-bit wide.

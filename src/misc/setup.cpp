@@ -270,6 +270,10 @@ char const* Property::Get_help() {
     return help_string.c_str();
 }
 
+void Property::SetBasic(bool basic) {
+    is_basic = basic;
+}
+
 bool Prop_int::SetVal(Value const& in, bool forced, bool warn, bool init) {
 	if (forced) {
 		value = in;
@@ -382,7 +386,7 @@ bool Prop_string::CheckValue(Value const& in, bool warn) {
             return true;
         }
         if ((*it).ToString() == "%u") {
-            Bit32u value;
+            uint32_t value;
             if (sscanf(in.ToString().c_str(),"%u",&value) == 1) {
                 return true;
             }
@@ -729,20 +733,23 @@ bool Section_prop::HandleInputline(string const& gegevens) {
     return false;
 }
 
-void Section_prop::PrintData(FILE* outfile,bool everything) {
+void Section_prop::PrintData(FILE* outfile,int everything,bool norem) {
     /* Now print out the individual section entries */
     size_t len = 0;
     // Determine maximum length of the props in this section
     for(const_it tel = properties.begin();tel != properties.end();++tel) {
+        if (!(everything>0 || everything==-1 && ((*tel)->basic() || (*tel)->modified()) || !everything && ((!norem && (*tel)->propname == "rem" && (!strcasecmp(GetName(), "4dos") || !strcasecmp(GetName(), "config"))) || (*tel)->modified()))) continue;
+
         if ((*tel)->propname.length() > len)
             len = (*tel)->propname.length();
     }
 	if (!strcasecmp(GetName(), "config")&&len<11) len=11;
 
     for(const_it tel = properties.begin();tel != properties.end();++tel) {
-        if (!everything && !(*tel)->modified()) continue;
+        if (!(everything>0 || everything==-1 && ((*tel)->basic() || (*tel)->modified()) || !everything && ((!norem && (*tel)->propname == "rem" && (!strcasecmp(GetName(), "4dos") || !strcasecmp(GetName(), "config"))) || (*tel)->modified()))) continue;
 
-        fprintf(outfile,"%-*s = %s\n", (unsigned int)len, (*tel)->propname.c_str(), (*tel)->GetValue().ToString().c_str());
+        std::string pre=everything==2&&!(*tel)->basic()?"#DOSBOX-X-ADV:":"";
+        fprintf(outfile,"%s%-*s = %s\n", pre.c_str(), (unsigned int)len, (*tel)->propname.c_str(), (*tel)->GetValue().ToString().c_str());
     }
 }
 
@@ -766,8 +773,9 @@ bool Section_line::HandleInputline(string const& line) {
     return true;
 }
 
-void Section_line::PrintData(FILE* outfile,bool everything) {
+void Section_line::PrintData(FILE* outfile,int everything,bool norem) {
     (void)everything;//UNUSED
+    (void)norem;//UNUSED
     fprintf(outfile,"%s",data.c_str());
 }
 
@@ -775,14 +783,16 @@ string Section_line::GetPropValue(string const& /* _property*/) const {
     return NO_SUCH_PROPERTY;
 }
 
-bool Config::PrintConfig(char const * const configfilename,bool everything) const {
+bool Config::PrintConfig(char const * const configfilename,int everything,bool norem) const {
     char temp[50];char helpline[256];
     FILE* outfile=fopen(configfilename,"w+t");
     if (outfile==NULL) return false;
 
     /* Print start of configfile and add a return to improve readibility. */
-    fprintf(outfile,MSG_Get("CONFIGFILE_INTRO"),VERSION);
-    fprintf(outfile,"\n");
+    if (!norem) {
+        fprintf(outfile,MSG_Get("CONFIGFILE_INTRO"),VERSION);
+        fprintf(outfile,"\n");
+    }
     for (const_it tel=sectionlist.begin(); tel!=sectionlist.end(); ++tel) {
         /* Print out the Section header */
         strcpy(temp,(*tel)->GetName());
@@ -794,7 +804,8 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
             Property *p;
             size_t i = 0, maxwidth = 0;
             while ((p = sec->Get_prop(int(i++)))) {
-                if (!everything && !p->modified()) continue;
+                if (!(everything>0 || everything==-1 && (p->basic() || p->modified()) || !everything && (p->propname == "rem" && (!strcmp(temp, "4dos") || !strcmp(temp, "config")) || p->modified())))
+                    continue;
 
                 size_t w = strlen(p->propname.c_str());
                 if (w > maxwidth) maxwidth = w;
@@ -810,10 +821,13 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
 
             i=0;
             char prefix[80];
-            snprintf(prefix,80, "\n# %*s    ", (int)maxwidth, "");
+            if (!norem)
             while ((p = sec->Get_prop(int(i++)))) {
-                if (!everything && !p->modified()) continue;
+                if (!(everything>0 || everything==-1 && (p->basic() || p->modified()) || !everything && (p->propname == "rem" && (!strcmp(temp, "4dos") || !strcmp(temp, "config")) || p->modified())))
+                    continue;
 
+                std::string pre=everything==2&&!p->basic()?"#DOSBOX-X-ADV:":"";
+                snprintf(prefix,80, "\n%s#%*s     ", pre.c_str(), (int)maxwidth, "");
                 std::string help = p->Get_help();
                 std::string::size_type pos = std::string::npos;
                 while ((pos = help.find("\n", pos+1)) != std::string::npos) {
@@ -823,7 +837,7 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
                 std::vector<Value> values = p->GetValues();
 
                 if (help != "" || !values.empty()) {
-                    fprintf(outfile, "# %*s: %s", (int)maxwidth, p->propname.c_str(), help.c_str());
+                    fprintf(outfile, "%s# %*s: %s", pre.c_str(), (int)maxwidth, p->propname.c_str(), help.c_str());
 
                     if (!values.empty()) {
                         fprintf(outfile, "%s%s:", prefix, MSG_Get("CONFIG_SUGGESTED_VALUES"));
@@ -843,22 +857,24 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
         } else {
             fprintf(outfile,"[%s]\n",temp);
 
-            upcase(temp);
-            strcat(temp,"_CONFIGFILE_HELP");
-            const char * helpstr=MSG_Get(temp);
-            char * helpwrite=helpline;
-            while (*helpstr) {
-                *helpwrite++=*helpstr;
-                if (*helpstr == '\n') {
-                    *helpwrite=0;
-                    fprintf(outfile,"# %s",helpline);
-                    helpwrite=helpline;
+            if (!norem) {
+                upcase(temp);
+                strcat(temp,"_CONFIGFILE_HELP");
+                const char * helpstr=MSG_Get(temp);
+                char * helpwrite=helpline;
+                while (*helpstr) {
+                    *helpwrite++=*helpstr;
+                    if (*helpstr == '\n') {
+                        *helpwrite=0;
+                        fprintf(outfile,"# %s",helpline);
+                        helpwrite=helpline;
+                    }
+                    helpstr++;
                 }
-                helpstr++;
             }
         }
 
-        (*tel)->PrintData(outfile,everything);
+        (*tel)->PrintData(outfile,everything,norem);
 		if (!strcmp(temp, "config")||!strcmp(temp, "4dos")) {
 			const char * extra = const_cast<char*>(sec->data.c_str());
 			bool used1=false, used2=false;
@@ -882,7 +898,8 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
 						lowcase(cmd);
 						if (!strcmp(temp, "4dos")||!strncmp(cmd, "set ", 4)||!strcmp(cmd, "install")||!strcmp(cmd, "installhigh")||!strcmp(cmd, "device")||!strcmp(cmd, "devicehigh")) {
 							(!strncmp(cmd, "set ", 4)?used1:used2)=true;
-							fprintf(outfile, strcmp(temp, "4dos")?"%-11s = %s\n":"%-14s = %s\n", cmd, val);
+							if (!((!strcmp(cmd, "install")||!strcmp(cmd, "installhigh")||!strcmp(cmd, "device")||!strcmp(cmd, "devicehigh"))&&!strlen(val)&&!everything))
+                                fprintf(outfile, strcmp(temp, "4dos")?"%-11s = %s\n":"%-14s = %s\n", cmd, val);
 						}
 					}
 				}
@@ -891,6 +908,7 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
 				if (everything&&!used1) {
 					fprintf(outfile, "%-11s = %s\n", "set path", "Z:\\");
 					fprintf(outfile, "%-11s = %s\n", "set prompt", "$P$G");
+					fprintf(outfile, "%-11s = %s\n", "set temp", "");
 				}
 				if (everything&&!used2) {
 					fprintf(outfile, "%-11s = %s\n", "install", "");
@@ -906,7 +924,7 @@ bool Config::PrintConfig(char const * const configfilename,bool everything) cons
 							linestr[CROSS_LEN]=0;
 						} else
 							strcpy(linestr, line.c_str());
-						if (!strncasecmp(trim(lin), "rem ", 4)&&*trim(trim(lin)+4)!='=')
+						if (!strncasecmp(trim(lin), "rem ", 4)&&*trim(trim(lin)+4)!='='&&!norem)
 							fprintf(outfile, "%s\n", trim(lin));
 					}
 				}
@@ -1024,9 +1042,18 @@ Section* Config::GetSection(string const& _sectionname) const{
 }
 
 Section* Config::GetSectionFromProperty(char const * const prop) const{
+    bool log=false;
+    const_it logsec;
     for (const_it tel=sectionlist.begin(); tel!=sectionlist.end(); ++tel) {
-        if ((*tel)->GetPropValue(prop) != NO_SUCH_PROPERTY) return (*tel);
+        if ((*tel)->GetPropValue(prop) != NO_SUCH_PROPERTY) {
+            if (!strcasecmp((*tel)->GetName(),"log")) {
+                log=true;
+                logsec=tel;
+            } else
+                return (*tel);
+        }
     }
+    if (log) return (*logsec);
     return NULL;
 }
 
@@ -1053,13 +1080,14 @@ bool Config::ParseConfigFile(char const * const configfilename) {
     Section* currentsection = NULL;
     Section* testsec = NULL;
     while (getline(in,gegevens)) {
+        if (gegevens.size()>10&&gegevens.substr(0,10)=="#DOSBOX-X:") gegevens=gegevens.substr(10);
+        if (gegevens.size()>13&&gegevens.substr(0,14)=="#DOSBOX-X-ADV:") gegevens=gegevens.substr(14);
 
         /* strip leading/trailing whitespace */
         trim(gegevens);
         if (!gegevens.size()) continue;
 
         switch(gegevens[0]) {
-        case '%':
         case '\0':
         case '#':
         case ' ':
@@ -1076,6 +1104,8 @@ bool Config::ParseConfigFile(char const * const configfilename) {
             testsec = NULL;
         }
             break;
+        case '%':
+            if (strcasecmp(currentsection->GetName(), "autoexec")) continue;
         default:
             try {
                 if (currentsection) {
@@ -1186,6 +1216,34 @@ bool CommandLine::FindStringBegin(char const* const begin,std::string & value, b
         if (strncmp(begin,(*it).c_str(),len)==0) {
             value=((*it).c_str() + len);
             if (remove) cmds.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CommandLine::FindStringFullBegin(char const* const begin,std::string & value, bool squote, bool remove) {
+    size_t len = strlen(begin);
+    char c = squote?'\'':'\"';
+    for (cmd_it it=cmds.begin();it!=cmds.end();++it) {
+        if (strncmp(begin,(*it).c_str(),len)==0) {
+            bool q=(*it)[len]==c;
+            value=((*it).c_str() + len + (q?1:0));
+            if (remove) cmds.erase(it);
+            if (q) {
+                std::string str=value;
+                if (str.back()==c)
+                    value.pop_back();
+                else while (str.size()&&++it!=cmds.end()) {
+                    str=(*it);
+                    if (remove) cmds.erase(it);
+                    value+=" "+str;
+                    if (str.back()==c) {
+                        value.pop_back();
+                        break;
+                    }
+                }
+            }
             return true;
         }
     }
@@ -1389,12 +1447,14 @@ void CommandLine::FillVector(std::vector<std::string> & vector) {
     for(cmd_it it=cmds.begin(); it != cmds.end(); ++it) {
         vector.push_back((*it));
     }
+#ifdef WIN32
     // add back the \" if the parameter contained a space
     for(Bitu i = 0; i < vector.size(); i++) {
         if (vector[i].find(' ') != std::string::npos) {
             vector[i] = "\""+vector[i]+"\"";
         }
     }
+#endif
 }
 
 int CommandLine::GetParameterFromList(const char* const params[], std::vector<std::string> & output) {
@@ -1469,16 +1529,16 @@ const std::string& CommandLine::GetRawCmdline(void) {
     return raw_cmdline;
 }
 
-Bit16u CommandLine::Get_arglength() {
+uint16_t CommandLine::Get_arglength() {
     if (cmds.empty()) return 0;
-    Bit16u i=1;
+    uint16_t i=1;
     for(cmd_it it=cmds.begin();it != cmds.end();++it)
         i+=(*it).size() + 1;
     return --i;
 }
 
 
-CommandLine::CommandLine(char const * const name,char const * const cmdline,enum opt_style opt) {
+CommandLine::CommandLine(char const * const name,char const * const cmdline,enum opt_style opt, bool squote) {
     if (name) file_name=name;
     /* Parse the cmds and put them in the list */
     bool inword,inquote;char c;
@@ -1489,7 +1549,7 @@ CommandLine::CommandLine(char const * const name,char const * const cmdline,enum
     opt_style = opt;
     while ((c=*c_cmdline)!=0) {
         if (inquote) {
-            if (c!='"') str+=c;
+            if (c!='"'&&!squote) str+=c;
             else {
                 inquote=false;
                 cmds.push_back(str);
@@ -1503,7 +1563,7 @@ CommandLine::CommandLine(char const * const name,char const * const cmdline,enum
                 str.erase();
             }
         }
-        else if (c=='\"') { inquote=true;}
+        else if (c=='\"'&&!squote) { inquote=true;}
         else if (c!=' ') { str+=c;inword=true;}
         c_cmdline++;
     }

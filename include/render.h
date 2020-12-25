@@ -25,6 +25,8 @@
 // 3: complex scalers on
 #define RENDER_USE_ADVANCED_SCALERS 3
 
+#include "config.h"
+
 #include "../src/gui/render_scalers.h"
 
 #define RENDER_SKIP_CACHE	16
@@ -40,24 +42,28 @@ enum ASPECT_MODES {
 #endif
 };
 
+#if !defined(USE_TTF) && defined(C_FREETYPE)
+#define USE_TTF
+#endif
+
 typedef struct {
 	struct { 
-		Bit8u red;
-		Bit8u green;
-		Bit8u blue;
-		Bit8u unused;
+		uint8_t red;
+		uint8_t green;
+		uint8_t blue;
+		uint8_t unused;
 	} rgb[256];
 	union {
-		Bit16u b16[256];
-		Bit32u b32[256];
+		uint16_t b16[256];
+		uint32_t b32[256];
 	} lut;
 	bool changed;
-	Bit8u modified[256];
+	uint8_t modified[256];
 	Bitu first;
 	Bitu last;
 } RenderPal_t;
 
-typedef struct {
+typedef struct Render_t {
 	struct {
 		Bitu width, start;
 		Bitu height;
@@ -68,10 +74,10 @@ typedef struct {
 		double scrn_ratio;
 	} src;
 	struct {
-		Bitu count;
-		Bitu max;
+		int count;
+		int max;
 		Bitu index;
-		Bit8u hadSkip[RENDER_SKIP_CACHE];
+		uint8_t hadSkip[RENDER_SKIP_CACHE];
 	} frameskip;
 	struct {
 		Bitu size;
@@ -86,11 +92,19 @@ typedef struct {
 		ScalerComplexHandler_t complexHandler;
 		Bitu blocks, lastBlock;
 		Bitu outPitch;
-		Bit8u *outWrite;
+		uint8_t *outWrite;
 		Bitu cachePitch;
-		Bit8u *cacheRead;
+		uint8_t *cacheRead;
 		Bitu inHeight, inLine, outLine;
 	} scale;
+	struct {
+		uint8_t *pointer;
+		Bitu width, height;
+	} cache;
+#if C_OPENGL
+	char* shader_src;
+    bool shader_def=false;
+#endif
     RenderPal_t pal;
 	bool updating;
 	bool active;
@@ -101,13 +115,79 @@ typedef struct {
 	bool autofit;
 } Render_t;
 
+#if defined(USE_TTF)
+#include "SDL_ttf.h"
+#define txtMaxCols 160
+#define txtMaxLins 60
+typedef struct {
+	bool	inUse;
+	TTF_Font *SDL_font;
+	TTF_Font *SDL_fontb;
+	TTF_Font *SDL_fonti;
+	TTF_Font *SDL_fontbi;
+	bool	DOSBox;								// is DOSBox-X internal TTF loaded, pointsizes should be even to look really nice
+	int		pointsize;
+	int		height;								// height of character cell
+	int		width;								// width
+	int		cursor;
+	int		lins;								// number of lines 24-60
+	int		cols;								// number of columns 80-160
+	bool	fullScrn;							// in fake fullscreen
+	int		offX;								// horizontal offset to center content
+	int		offY;								// vertical ,,
+} Render_ttf;
+
+struct ttf_cell {
+    uint16_t        chr;                        // unicode code point OR just the raw code point. set to ' ' (0x20) for empty space.
+    unsigned int    fg:4;                       // foreground color (one of 16)
+    unsigned int    bg:4;                       // background color (one of 16)
+    unsigned int    doublewide:1;               // double-wide (e.g. PC-98 JIS), therefore skip next character cell.
+    unsigned int    blink:1;                    // blink attribute
+    unsigned int    underline:1;                // underline attribute
+    unsigned int    unicode:1;                  // chr is unicode code point
+    unsigned int    skipped:1;                  // adjacent (ignored) cell to a doublewide
+    unsigned int    selected:1;
+
+    ttf_cell() {
+        chr = 0x20;
+        fg = 7;
+        bg = 0;
+        doublewide = 0;
+        blink = 0;
+        underline = 0;
+        unicode = 0;
+        skipped = 0;
+        selected = 0;
+    }
+
+    bool operator==(const ttf_cell &lhs) const {
+        return  chr         == lhs.chr &&
+                fg          == lhs.fg &&
+                bg          == lhs.bg &&
+                doublewide  == lhs.doublewide &&
+                blink       == lhs.blink &&
+                skipped     == lhs.skipped &&
+                underline   == lhs.underline &&
+                unicode     == lhs.unicode;
+    }
+    bool operator!=(const ttf_cell &lhs) const {
+        return !(*this == lhs);
+    }
+};
+// FIXME: Perhaps the TTF output code should just render unicode code points and vga_draw should do the code page conversion
+
+extern ttf_cell curAttrChar[];					// currently displayed textpage
+extern ttf_cell newAttrChar[];					// to be replaced by
+extern Render_ttf ttf;
+#endif
 extern Render_t render;
 extern Bitu last_gfx_flags;
 extern ScalerLineHandler_t RENDER_DrawLine;
 void RENDER_SetSize(Bitu width,Bitu height,Bitu bpp,float fps,double scrn_ratio);
 bool RENDER_StartUpdate(void);
 void RENDER_EndUpdate(bool abort);
-void RENDER_SetPal(Bit8u entry,Bit8u red,Bit8u green,Bit8u blue);
-
+void RENDER_SetPal(uint8_t entry,uint8_t red,uint8_t green,uint8_t blue);
+bool RENDER_GetForceUpdate(void);
+void RENDER_SetForceUpdate(bool);
 
 #endif

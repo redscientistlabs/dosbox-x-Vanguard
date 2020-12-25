@@ -55,7 +55,7 @@
  *   - archive:  https://github.com/voidah/archive, by Arthur Ouellet
  *   - xxHash:   http://cyan4973.github.io/xxHash, by Yann Collet
  *
- *  Copyright (C) 2020       The dosbox-staging team
+ *  Copyright (C) 2020       The DOSBox Staging Team
  *  Copyright (C) 2018-2019  Kevin R. Croft <krcroft@gmail.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -88,7 +88,6 @@
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
-// #include "../../../include/logging.h"
 #include "mp3_seek_table.h"
 
 // C++ scope modifiers
@@ -100,7 +99,7 @@ using std::ifstream;
 using std::ofstream;
 
 // Identifies a valid versioned seek-table
-#define SEEK_TABLE_IDENTIFIER "st-v4"
+#define SEEK_TABLE_IDENTIFIER "st-v5"
 
 // How many compressed MP3 frames should we skip between each recorded
 // time point.  The trade-off is as follows:

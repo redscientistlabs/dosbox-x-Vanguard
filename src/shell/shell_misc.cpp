@@ -33,6 +33,7 @@
 #include "../dos/drives.h"
 #ifdef WIN32
 #include "../dos/cdrom.h"
+#include <shellapi.h>
 #endif
 
 #ifdef _MSC_VER
@@ -46,7 +47,11 @@
 # define MAX(a,b) std::max(a,b)
 #endif
 
+bool clearline=false;
+int autofixwarn=3;
 extern int lfn_filefind_handle;
+extern bool DOS_BreakFlag;
+extern bool DOS_BreakConioFlag;
 
 void DOS_Shell::ShowPrompt(void) {
 	char dir[DOS_PATHLENGTH];
@@ -83,13 +88,13 @@ void DOS_Shell::ShowPrompt(void) {
 			case 'S': WriteOut(" "); break;
 			case 'T': {
 				Bitu ticks=(Bitu)(((65536.0 * 100.0)/(double)PIT_TICK_RATE)* mem_readd(BIOS_TIMER));
-				reg_dl=(Bit8u)((Bitu)ticks % 100);
+				reg_dl=(uint8_t)((Bitu)ticks % 100);
 				ticks/=100;
-				reg_dh=(Bit8u)((Bitu)ticks % 60);
+				reg_dh=(uint8_t)((Bitu)ticks % 60);
 				ticks/=60;
-				reg_cl=(Bit8u)((Bitu)ticks % 60);
+				reg_cl=(uint8_t)((Bitu)ticks % 60);
 				ticks/=60;
-				reg_ch=(Bit8u)((Bitu)ticks % 24);
+				reg_ch=(uint8_t)((Bitu)ticks % 24);
 				WriteOut("%2d:%02d:%02d.%02d",reg_ch,reg_cl,reg_dh,reg_dl);
 				break;
 			}
@@ -103,14 +108,14 @@ void DOS_Shell::ShowPrompt(void) {
 	}
 }
 
-static void outc(Bit8u c) {
-	Bit16u n=1;
+static void outc(uint8_t c) {
+	uint16_t n=1;
 	DOS_WriteFile(STDOUT,&c,&n);
 }
 
 static void backone() {
 	BIOS_NCOLS;
-	Bit8u page=real_readb(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
+	uint8_t page=real_readb(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
 	if (CURSOR_POS_COL(page)>0)
 		outc(8);
 	else if (CURSOR_POS_ROW(page)>0)
@@ -120,26 +125,183 @@ static void backone() {
 //! \brief Moves the caret to prev row/last column when column is 0 (video mode 0).
 void MoveCaretBackwards()
 {
-	Bit8u col, row;
-	const Bit8u page(0);
+	uint8_t col, row;
+	const uint8_t page(0);
 	INT10_GetCursorPos(&row, &col, page);
 
 	if (col != 0) 
 		return;
 
-	Bit16u cols;
+	uint16_t cols;
 	INT10_GetScreenColumns(&cols);
-	INT10_SetCursorPos(row - 1, static_cast<Bit8u>(cols), page);
+	INT10_SetCursorPos(row - 1, static_cast<uint8_t>(cols), page);
+}
+
+bool DOS_Shell::BuildCompletions(char * line, uint16_t str_len) {
+    // build new completion list
+    // Lines starting with CD/MD/RD will only get directories in the list
+    bool dir_only = (strncasecmp(ltrim(line),"CD ",3)==0)||(strncasecmp(ltrim(line),"MD ",3)==0)||(strncasecmp(ltrim(line),"RD ",3)==0)||
+            (strncasecmp(ltrim(line),"CHDIR ",6)==0)||(strncasecmp(ltrim(line),"MKDIR ",3)==0)||(strncasecmp(ltrim(line),"RMDIR ",6)==0);
+    int q=0, r=0, k=0;
+
+    // get completion mask
+    const char *p_completion_start = strrchr(line, ' ');
+    while (p_completion_start) {
+        q=0;
+        char *i;
+        for (i=line;i<p_completion_start;i++)
+           if (*i=='\"') q++;
+        if (q/2*2==q) break;
+        *i=0;
+        p_completion_start = strrchr(line, ' ');
+        *i=' ';
+    }
+    char c[]={'<','>','|'};
+    for (unsigned int j=0; j<sizeof(c); j++) {
+        const char *sp = strrchr(line, c[j]);
+        while (sp) {
+            q=0;
+            char *i;
+            for (i=line;i<sp;i++)
+                if (*i=='\"') q++;
+            if (q/2*2==q) break;
+            *i=0;
+            sp = strrchr(line, c[j]);
+            *i=c[j];
+        }
+        if (!p_completion_start || p_completion_start<sp)
+            p_completion_start = sp;
+    }
+
+    if (p_completion_start) {
+        p_completion_start ++;
+        completion_index = (uint16_t)(str_len - strlen(p_completion_start));
+    } else {
+        p_completion_start = line;
+        completion_index = 0;
+    }
+    k=completion_index;
+
+    const char *path;
+    if ((path = strrchr(line+completion_index,':'))) completion_index = (uint16_t)(path-line+1);
+    if ((path = strrchr(line+completion_index,'\\'))) completion_index = (uint16_t)(path-line+1);
+    if ((path = strrchr(line+completion_index,'/'))) completion_index = (uint16_t)(path-line+1);
+
+    // build the completion list
+    char mask[DOS_PATHLENGTH+2] = {0}, smask[DOS_PATHLENGTH] = {0};
+    if (p_completion_start && strlen(p_completion_start) + 3 >= DOS_PATHLENGTH) {
+        // TODO: This really should be done in the CON driver so that this code can just print ASCII code 7 instead
+        if (IS_PC98_ARCH) {
+            // TODO: BEEP. I/O PORTS ARE DIFFERENT AS IS THE PIT CLOCK RATE
+        }
+        else {
+            // IBM PC/XT/AT
+            IO_Write(0x43,0xb6);
+            IO_Write(0x42,1750&0xff);
+            IO_Write(0x42,1750>>8);
+            IO_Write(0x61,IO_Read(0x61)|0x3);
+            for(Bitu i=0; i < 333; i++) CALLBACK_Idle();
+            IO_Write(0x61,IO_Read(0x61)&~0x3);
+        }
+        return false;
+    }
+    if (p_completion_start) {
+        safe_strncpy(mask, p_completion_start,DOS_PATHLENGTH);
+        const char* dot_pos = strrchr(mask, '.');
+        const char* bs_pos = strrchr(mask, '\\');
+        const char* fs_pos = strrchr(mask, '/');
+        const char* cl_pos = strrchr(mask, ':');
+        // not perfect when line already contains wildcards, but works
+        if ((dot_pos-bs_pos>0) && (dot_pos-fs_pos>0) && (dot_pos-cl_pos>0))
+            strncat(mask, "*",DOS_PATHLENGTH - 1);
+        else strncat(mask, "*.*",DOS_PATHLENGTH - 1);
+    } else {
+        strcpy(mask, "*.*");
+    }
+
+    RealPt save_dta=dos.dta();
+    dos.dta(dos.tables.tempdta);
+
+    bool res = false;
+    if (DOS_GetSFNPath(mask,smask,false)) {
+        sprintf(mask,"\"%s\"",smask);
+        int fbak=lfn_filefind_handle;
+        lfn_filefind_handle=uselfn?LFN_FILEFIND_INTERNAL:LFN_FILEFIND_NONE;
+        res = DOS_FindFirst(mask, 0xffff & ~DOS_ATTR_VOLUME);
+        lfn_filefind_handle=fbak;
+    }
+    if (!res) {
+        dos.dta(save_dta);
+        // TODO: This really should be done in the CON driver so that this code can just print ASCII code 7 instead
+        if (IS_PC98_ARCH) {
+            // TODO: BEEP. I/O PORTS ARE DIFFERENT AS IS THE PIT CLOCK RATE
+        }
+        else {
+            // IBM PC/XT/AT
+            IO_Write(0x43,0xb6);
+            IO_Write(0x42,1750&0xff);
+            IO_Write(0x42,1750>>8);
+            IO_Write(0x61,IO_Read(0x61)|0x3);
+            for(Bitu i=0; i < 300; i++) CALLBACK_Idle();
+            IO_Write(0x61,IO_Read(0x61)&~0x3);
+        }
+        return false;
+    }
+
+    DOS_DTA dta(dos.dta());
+    char name[DOS_NAMELENGTH_ASCII], lname[LFN_NAMELENGTH], qlname[LFN_NAMELENGTH+2];
+    uint32_t sz;uint16_t date;uint16_t time;uint8_t att;
+
+    std::list<std::string> executable;
+    q=0;r=0;
+    while (*p_completion_start) {
+        k++;
+        if (*p_completion_start++=='\"') {
+            if (k<=completion_index)
+                q++;
+            else
+                r++;
+        }
+    }
+    int fbak=lfn_filefind_handle;
+    lfn_filefind_handle=uselfn?LFN_FILEFIND_INTERNAL:LFN_FILEFIND_NONE;
+    while (res) {
+        dta.GetResult(name,lname,sz,date,time,att);
+        if ((strchr(uselfn?lname:name,' ')!=NULL&&q/2*2==q)||r)
+            sprintf(qlname,q/2*2!=q?"%s\"":"\"%s\"",uselfn?lname:name);
+        else
+            strcpy(qlname,uselfn?lname:name);
+        // add result to completion list
+
+        if (strcmp(name, ".") && strcmp(name, "..")) {
+            if (dir_only) { //Handle the dir only case different (line starts with cd)
+                if(att & DOS_ATTR_DIRECTORY) l_completion.push_back(qlname);
+            } else {
+                const char *ext = strrchr(name, '.'); // file extension
+                if (ext && (strcmp(ext, ".BAT") == 0 || strcmp(ext, ".COM") == 0 || strcmp(ext, ".EXE") == 0))
+                    // we add executables to the a seperate list and place that list infront of the normal files
+                    executable.push_front(qlname);
+                else
+                    l_completion.push_back(qlname);
+            }
+        }
+        res=DOS_FindNext();
+    }
+    lfn_filefind_handle=fbak;
+    /* Add executable list to front of completion list. */
+    std::copy(executable.begin(),executable.end(),std::front_inserter(l_completion));
+    dos.dta(save_dta);
+    return true;
 }
 
 /* NTS: buffer pointed to by "line" must be at least CMD_MAXLINE+1 large */
 void DOS_Shell::InputCommand(char * line) {
 	Bitu size=CMD_MAXLINE-2; //lastcharacter+0
-	Bit8u c;Bit16u n=1;
-	Bit16u str_len=0;Bit16u str_index=0;
-	Bit16u len=0;
+	uint8_t c;uint16_t n=1;
+	uint16_t str_len=0;uint16_t str_index=0;
+	uint16_t len=0;
 	bool current_hist=false; // current command stored in history?
-    Bit16u cr;
+    uint16_t cr;
 
     input_eof = false;
 	line[0] = '\0';
@@ -157,12 +319,19 @@ void DOS_Shell::InputCommand(char * line) {
 			size=0;			//Kill the while loop
 			continue;
 		}
+        if (clearline) {
+            clearline = false;
+            *line=0;
+            if (l_completion.size()) l_completion.clear(); //reset the completion list.
+            str_index = 0;
+            str_len = 0;
+        }
 
         if (input_handle != STDIN) { /* FIXME: Need DOS_IsATTY() or somesuch */
-            cr = (Bit16u)c; /* we're not reading from the console */
+            cr = (uint16_t)c; /* we're not reading from the console */
         }
         else if (IS_PC98_ARCH) {
-            extern Bit16u last_int16_code;
+            extern uint16_t last_int16_code;
 
             /* shift state is needed for some key combinations not directly supported by CON driver.
              * bit 4 = CTRL
@@ -229,20 +398,20 @@ void DOS_Shell::InputCommand(char * line) {
                         cr = 0;
                 }
                 else {
-                    cr = (Bit16u)c;
+                    cr = (uint16_t)c;
                 }
             }
             else {
-                cr = (Bit16u)c;
+                cr = (uint16_t)c;
             }
         }
         else {
             if (c == 0) {
 				DOS_ReadFile(input_handle,&c,&n);
-                cr = (Bit16u)c << (Bit16u)8;
+                cr = (uint16_t)c << (uint16_t)8;
             }
             else {
-                cr = (Bit16u)c;
+                cr = (uint16_t)c;
             }
         }
 
@@ -252,17 +421,22 @@ void DOS_Shell::InputCommand(char * line) {
                 it_history = l_history.begin();
                 if (it_history != l_history.end() && it_history->length() > str_len) {
                     const char *reader = &(it_history->c_str())[str_len];
-                    while ((c = (Bit8u)(*reader++))) {
+                    while ((c = (uint8_t)(*reader++))) {
                         line[str_index ++] = (char)c;
                         DOS_WriteFile(STDOUT,&c,&n);
                     }
-                    str_len = str_index = (Bit16u)it_history->length();
+                    str_len = str_index = (uint16_t)it_history->length();
                     size = (unsigned int)CMD_MAXLINE - str_index - 2u;
                     line[str_len] = 0;
                 }
                 break;
 
             case 0x4B00:	/* LEFT */
+                if (IS_PC98_ARCH&&str_index>1&&(line[str_index-1]<0||line[str_index-1]>32)&&line[str_index-2]<0) {
+                    backone();
+                    str_index --;
+                    MoveCaretBackwards();
+                }
                 if (str_index) {
                     backone();
                     str_index --;
@@ -287,7 +461,7 @@ void DOS_Shell::InputCommand(char * line) {
 					const auto lgt = MIN(pos, end) - (line + str_index);
 					
 					for (auto i = 0; i < lgt; i++)
-						outc(static_cast<Bit8u>(line[str_index++]));
+						outc(static_cast<uint8_t>(line[str_index++]));
 				}	
         		break;
 			case 0x7300: /*CTRL + LEFT : cmd.exe-like previous word*/
@@ -316,8 +490,11 @@ void DOS_Shell::InputCommand(char * line) {
 				}	
         		break;
             case 0x4D00:	/* RIGHT */
+                if (IS_PC98_ARCH&&str_index<str_len-1&&line[str_index]<0&&(line[str_index+1]<0||line[str_index+1]>32)) {
+                    outc((uint8_t)line[str_index++]);
+                }
                 if (str_index < str_len) {
-                    outc((Bit8u)line[str_index++]);
+                    outc((uint8_t)line[str_index++]);
                 }
                 break;
 
@@ -339,7 +516,7 @@ void DOS_Shell::InputCommand(char * line) {
 
             case 0x4F00:	/* END */
                 while (str_index < str_len) {
-                    outc((Bit8u)line[str_index++]);
+                    outc((uint8_t)line[str_index++]);
                 }
                 break;
 
@@ -354,7 +531,7 @@ void DOS_Shell::InputCommand(char * line) {
 
                 // ensure we're at end to handle all cases
                 while (str_index < str_len) {
-                    outc((Bit8u)line[str_index++]);
+                    outc((uint8_t)line[str_index++]);
                 }
 
                 for (;str_index>0; str_index--) {
@@ -362,10 +539,10 @@ void DOS_Shell::InputCommand(char * line) {
                     backone(); outc(' '); backone();
                 }
                 strcpy(line, it_history->c_str());
-                len = (Bit16u)it_history->length();
+                len = (uint16_t)it_history->length();
                 str_len = str_index = len;
                 size = (unsigned int)CMD_MAXLINE - str_index - 2u;
-                DOS_WriteFile(STDOUT, (Bit8u *)line, &len);
+                DOS_WriteFile(STDOUT, (uint8_t *)line, &len);
                 ++it_history;
                 break;
 
@@ -388,7 +565,7 @@ void DOS_Shell::InputCommand(char * line) {
 
                 // ensure we're at end to handle all cases
                 while (str_index < str_len) {
-                    outc((Bit8u)line[str_index++]);
+                    outc((uint8_t)line[str_index++]);
                 }
 
                 for (;str_index>0; str_index--) {
@@ -396,29 +573,40 @@ void DOS_Shell::InputCommand(char * line) {
                     backone(); outc(' '); backone();
                 }
                 strcpy(line, it_history->c_str());
-                len = (Bit16u)it_history->length();
+                len = (uint16_t)it_history->length();
                 str_len = str_index = len;
                 size = (unsigned int)CMD_MAXLINE - str_index - 2u;
-                DOS_WriteFile(STDOUT, (Bit8u *)line, &len);
+                DOS_WriteFile(STDOUT, (uint8_t *)line, &len);
                 ++it_history;
 
                 break;
             case 0x5300:/* DELETE */
                 {
                     if(str_index>=str_len) break;
-                    Bit16u a=str_len-str_index-1;
-                    Bit8u* text=reinterpret_cast<Bit8u*>(&line[str_index+1]);
-                    DOS_WriteFile(STDOUT,text,&a);//write buffer to screen
-                    outc(' ');backone();
-                    for(Bitu i=str_index;i<(str_len-1u);i++) {
-                        line[i]=line[i+1u];
-                        backone();
+                    int k=1;
+                    if (IS_PC98_ARCH&&str_index<str_len-1&&line[str_index]<0&&(line[str_index+1]<0||line[str_index+1]>32))
+                        k=2;
+                    for (int i=0; i<k; i++) {
+                        uint16_t a=str_len-str_index-1;
+                        uint8_t* text=reinterpret_cast<uint8_t*>(&line[str_index+1]);
+                        DOS_WriteFile(STDOUT,text,&a);//write buffer to screen
+                        outc(' ');backone();
+                        for(Bitu i=str_index;i<(str_len-1u);i++) {
+                            line[i]=line[i+1u];
+                            backone();
+                        }
+                        line[--str_len]=0;
+                        size++;
                     }
-                    line[--str_len]=0;
-                    size++;
                 }
                 break;
             case 0x0F00:	/* Shift-Tab */
+                if (!l_completion.size()) {
+                    if (BuildCompletions(line, str_len))
+                        it_completion = l_completion.end();
+                    else
+                        break;
+                }
                 if (l_completion.size()) {
                     if (it_completion == l_completion.begin()) it_completion = l_completion.end (); 
                     --it_completion;
@@ -430,32 +618,38 @@ void DOS_Shell::InputCommand(char * line) {
                         }
 
                         strcpy(&line[completion_index], it_completion->c_str());
-                        len = (Bit16u)it_completion->length();
+                        len = (uint16_t)it_completion->length();
                         str_len = str_index = (Bitu)(completion_index + len);
                         size = (unsigned int)CMD_MAXLINE - str_index - 2u;
-                        DOS_WriteFile(STDOUT, (Bit8u *)it_completion->c_str(), &len);
+                        DOS_WriteFile(STDOUT, (uint8_t *)it_completion->c_str(), &len);
                     }
                 }
                 break;
             case 0x08:				/* BackSpace */
-                if (str_index) {
-                    backone();
-                    Bit32u str_remain=(Bit32u)(str_len - str_index);
-                    size++;
-                    if (str_remain) {
-                        memmove(&line[str_index-1],&line[str_index],str_remain);
-                        line[--str_len]=0;
-                        str_index --;
-                        /* Go back to redraw */
-                        for (Bit16u i=str_index; i < str_len; i++)
-                            outc((Bit8u)line[i]);
-                    } else {
-                        line[--str_index] = '\0';
-                        str_len--;
-                    }
-                    outc(' ');	backone();
-                    // moves the cursor left
-                    while (str_remain--) backone();
+                {
+                    int k=1;
+                    if (IS_PC98_ARCH&&str_index>1&&(line[str_index-1]<0||line[str_index-1]>32)&&line[str_index-2]<0)
+                        k=2;
+                    for (int i=0; i<k; i++)
+                        if (str_index) {
+                            backone();
+                            uint32_t str_remain=(uint32_t)(str_len - str_index);
+                            size++;
+                            if (str_remain) {
+                                memmove(&line[str_index-1],&line[str_index],str_remain);
+                                line[--str_len]=0;
+                                str_index --;
+                                /* Go back to redraw */
+                                for (uint16_t i=str_index; i < str_len; i++)
+                                    outc((uint8_t)line[i]);
+                            } else {
+                                line[--str_index] = '\0';
+                                str_len--;
+                            }
+                            outc(' ');	backone();
+                            // moves the cursor left
+                            while (str_remain--) backone();
+                        }
                 }
                 if (l_completion.size()) l_completion.clear();
                 break;
@@ -469,185 +663,93 @@ void DOS_Shell::InputCommand(char * line) {
                 if(!echo) outc('\n');
                 size = 0;       // stop the next loop
                 str_len = 0;    // prevent multiple adds of the same line
+                DOS_BreakFlag = false; // clear break flag so the next program doesn't get hit with it
+                DOS_BreakConioFlag = false;
                 break;
             case 0x0d:				/* Don't care, and return */
                 if(!echo) { outc('\r'); outc('\n'); }
                 size=0;			//Kill the while loop
                 break;
-            case'\t':
-                {
-                    if (l_completion.size()) {
-                        ++it_completion;
-                        if (it_completion == l_completion.end()) it_completion = l_completion.begin();
-                    } else {
-                        // build new completion list
-                        // Lines starting with CD/MD/RD will only get directories in the list
-						bool dir_only = (strncasecmp(line,"CD ",3)==0)||(strncasecmp(line,"MD ",3)==0)||(strncasecmp(line,"RD ",3)==0)||
-								(strncasecmp(line,"CHDIR ",6)==0)||(strncasecmp(line,"MKDIR ",3)==0)||(strncasecmp(line,"RMDIR ",6)==0);
-						int q=0, r=0, k=0;
-
-                        // get completion mask
-                        const char *p_completion_start = strrchr(line, ' ');
-						while (p_completion_start) {
-	                        q=0;
-	                        char *i;
-	                        for (i=line;i<p_completion_start;i++)
-	                           if (*i=='\"') q++;
-	                        if (q/2*2==q) break;
-	                        *i=0;
-	                        p_completion_start = strrchr(line, ' ');
-	                        *i=' ';
-	                    }
-						char c[]={'<','>','|'};
-						for (unsigned int j=0; j<sizeof(c); j++) {
-							const char *sp = strrchr(line, c[j]);
-							while (sp) {
-								q=0;
-								char *i;
-								for (i=line;i<sp;i++)
-									if (*i=='\"') q++;
-								if (q/2*2==q) break;
-								*i=0;
-								sp = strrchr(line, c[j]);
-								*i=c[j];
-							}
-							if (!p_completion_start || p_completion_start<sp)
-								p_completion_start = sp;
-						}
-
-                        if (p_completion_start) {
-                            p_completion_start ++;
-                            completion_index = (Bit16u)(str_len - strlen(p_completion_start));
-                        } else {
-                            p_completion_start = line;
-                            completion_index = 0;
-                        }
-						k=completion_index;
-
-                        const char *path;
-						if ((path = strrchr(line+completion_index,':'))) completion_index = (Bit16u)(path-line+1);
-                        if ((path = strrchr(line+completion_index,'\\'))) completion_index = (Bit16u)(path-line+1);
-                        if ((path = strrchr(line+completion_index,'/'))) completion_index = (Bit16u)(path-line+1);
-
-                        // build the completion list
-                        char mask[DOS_PATHLENGTH+2] = {0}, smask[DOS_PATHLENGTH] = {0};
-                        if (p_completion_start && strlen(p_completion_start) + 3 >= DOS_PATHLENGTH) {
-							// TODO: This really should be done in the CON driver so that this code can just print ASCII code 7 instead
-							if (IS_PC98_ARCH) {
-								// TODO: BEEP. I/O PORTS ARE DIFFERENT AS IS THE PIT CLOCK RATE
-							}
-							else {
-								// IBM PC/XT/AT
-								IO_Write(0x43,0xb6);
-								IO_Write(0x42,1750&0xff);
-								IO_Write(0x42,1750>>8);
-								IO_Write(0x61,IO_Read(0x61)|0x3);
-								for(Bitu i=0; i < 333; i++) CALLBACK_Idle();
-								IO_Write(0x61,IO_Read(0x61)&~0x3);
-							}
-                            break;
-                        }
-                        if (p_completion_start) {
-                            safe_strncpy(mask, p_completion_start,DOS_PATHLENGTH);
-                            const char* dot_pos = strrchr(mask, '.');
-                            const char* bs_pos = strrchr(mask, '\\');
-                            const char* fs_pos = strrchr(mask, '/');
-                            const char* cl_pos = strrchr(mask, ':');
-                            // not perfect when line already contains wildcards, but works
-                            if ((dot_pos-bs_pos>0) && (dot_pos-fs_pos>0) && (dot_pos-cl_pos>0))
-                                strncat(mask, "*",DOS_PATHLENGTH - 1);
-                            else strncat(mask, "*.*",DOS_PATHLENGTH - 1);
-                        } else {
-                            strcpy(mask, "*.*");
-                        }
-
-                        RealPt save_dta=dos.dta();
-                        dos.dta(dos.tables.tempdta);
-						
-						bool res = false;
-						if (DOS_GetSFNPath(mask,smask,false)) {
-							sprintf(mask,"\"%s\"",smask);
-							int fbak=lfn_filefind_handle;
-							lfn_filefind_handle=uselfn?LFN_FILEFIND_INTERNAL:LFN_FILEFIND_NONE;
-							res = DOS_FindFirst(mask, 0xffff & ~DOS_ATTR_VOLUME);
-							lfn_filefind_handle=fbak;
-						}
-                        if (!res) {
-                            dos.dta(save_dta);
-							// TODO: This really should be done in the CON driver so that this code can just print ASCII code 7 instead
-							if (IS_PC98_ARCH) {
-								// TODO: BEEP. I/O PORTS ARE DIFFERENT AS IS THE PIT CLOCK RATE
-							}
-							else {
-								// IBM PC/XT/AT
-								IO_Write(0x43,0xb6);
-								IO_Write(0x42,1750&0xff);
-								IO_Write(0x42,1750>>8);
-								IO_Write(0x61,IO_Read(0x61)|0x3);
-								for(Bitu i=0; i < 300; i++) CALLBACK_Idle();
-								IO_Write(0x61,IO_Read(0x61)&~0x3);
-							}
-                            break;
-                        }
-
-                        DOS_DTA dta(dos.dta());
-						char name[DOS_NAMELENGTH_ASCII], lname[LFN_NAMELENGTH], qlname[LFN_NAMELENGTH+2];
-                        Bit32u sz;Bit16u date;Bit16u time;Bit8u att;
-
-                        std::list<std::string> executable;
-						q=0;r=0;
-						while (*p_completion_start) {
-							k++;
-							if (*p_completion_start++=='\"') {
-								if (k<=completion_index)
-									q++;
-								else
-									r++;
-							}
-						}
-						int fbak=lfn_filefind_handle;
-						lfn_filefind_handle=uselfn?LFN_FILEFIND_INTERNAL:LFN_FILEFIND_NONE;
-                        while (res) {
-							dta.GetResult(name,lname,sz,date,time,att);
-							if ((strchr(uselfn?lname:name,' ')!=NULL&&q/2*2==q)||r)
-								sprintf(qlname,q/2*2!=q?"%s\"":"\"%s\"",uselfn?lname:name);
-							else
-                                strcpy(qlname,uselfn?lname:name);
-                            // add result to completion list
-
-                            if (strcmp(name, ".") && strcmp(name, "..")) {
-                                if (dir_only) { //Handle the dir only case different (line starts with cd)
-									if(att & DOS_ATTR_DIRECTORY) l_completion.push_back(qlname);
-                                } else {
-                                    const char *ext = strrchr(name, '.'); // file extension
-                                    if (ext && (strcmp(ext, ".BAT") == 0 || strcmp(ext, ".COM") == 0 || strcmp(ext, ".EXE") == 0))
-                                        // we add executables to the a seperate list and place that list infront of the normal files
-                                        executable.push_front(qlname);
-                                    else
-										l_completion.push_back(qlname);
-                                }
-                            }
-                            res=DOS_FindNext();
-                        }
-						lfn_filefind_handle=fbak;
-                        /* Add executable list to front of completion list. */
-                        std::copy(executable.begin(),executable.end(),std::front_inserter(l_completion));
+            case 0x9400:	/* Ctrl-Tab */
+            {
+                if (!l_completion.size()) {
+                    if (BuildCompletions(line, str_len))
                         it_completion = l_completion.begin();
-                        dos.dta(save_dta);
+                    else
+                        break;
+                }
+                size_t w_count, p_count, col;
+                unsigned int max[15], total, tcols=IS_PC98_ARCH?80:real_readw(BIOSMEM_SEG,BIOSMEM_NB_COLS);
+                if (!tcols) tcols=80;
+                int mrow=tcols>80?15:10;
+                for (col=mrow; col>0; col--) {
+                    for (int i=0; i<mrow; i++) max[i]=2;
+                    if (col==1) break;
+                    w_count=0;
+                    for (std::list<std::string>::iterator source = l_completion.begin(); source != l_completion.end(); ++source) {
+                        std::string name = source->c_str();
+                        if (name.size()+2>max[w_count%col]) max[w_count%col]=(unsigned int)(name.size()+2);
+                        ++w_count;
+                    }
+                    total=0;
+                    for (size_t i=0; i<col; i++) total+=max[i];
+                    if (total<tcols) break;
+                }
+                w_count = p_count = 0;
+                bool lastcr=false;
+                if (l_completion.size()) {WriteOut_NoParsing("\n");lastcr=true;}
+                for (std::list<std::string>::iterator source = l_completion.begin(); source != l_completion.end(); ++source) {
+                    std::string name = source->c_str();
+                    if (col==1) {
+                        WriteOut("%s\n", name.c_str());
+                        lastcr=true;
+                        p_count++;
+                    } else {
+                        WriteOut("%s%-*s", name.c_str(), max[w_count % col]-name.size(), "");
+                        lastcr=false;
+                    }
+                    if (col>1) {
+                        ++w_count;
+                        if (w_count % col == 0) {p_count++;WriteOut_NoParsing("\n");lastcr=true;}
+                    }
+                    size_t GetPauseCount();
+                    if (p_count>GetPauseCount()) {
+                        WriteOut(MSG_Get("SHELL_CMD_PAUSE"));
+                        lastcr=false;
+                        w_count = p_count = 0;
+                        uint8_t c;uint16_t n=1;
+                        DOS_ReadFile(STDIN,&c,&n);
+                        if (c==3) {WriteOut("^C");break;}
+                        if (c==0) DOS_ReadFile(STDIN,&c,&n);
+                    }
+                }
+                if (l_completion.size()) {
+                    if (!lastcr) WriteOut_NoParsing("\n");
+                    ShowPrompt();
+                    WriteOut("%s", line);
+                }
+                break;
+            }
+            case'\t':
+                if (l_completion.size()) {
+                    ++it_completion;
+                    if (it_completion == l_completion.end()) it_completion = l_completion.begin();
+                } else if (BuildCompletions(line, str_len))
+                    it_completion = l_completion.begin();
+                else
+                    break;
+
+                if (l_completion.size() && it_completion->length()) {
+                    for (;str_index > completion_index; str_index--) {
+                        // removes all characters
+                        backone(); outc(' '); backone();
                     }
 
-                    if (l_completion.size() && it_completion->length()) {
-                        for (;str_index > completion_index; str_index--) {
-                            // removes all characters
-                            backone(); outc(' '); backone();
-                        }
-
-                        strcpy(&line[completion_index], it_completion->c_str());
-                        len = (Bit16u)it_completion->length();
-                        str_len = str_index = (Bitu)(completion_index + len);
-                        size = (unsigned int)CMD_MAXLINE - str_index - 2u;
-                        DOS_WriteFile(STDOUT, (Bit8u *)it_completion->c_str(), &len);
-                    }
+                    strcpy(&line[completion_index], it_completion->c_str());
+                    len = (uint16_t)it_completion->length();
+                    str_len = str_index = (Bitu)(completion_index + len);
+                    size = (unsigned int)CMD_MAXLINE - str_index - 2u;
+                    DOS_WriteFile(STDOUT, (uint8_t *)it_completion->c_str(), &len);
                 }
                 break;
             case 0x1b:   /* ESC */
@@ -692,8 +794,8 @@ void DOS_Shell::InputCommand(char * line) {
                 if (l_completion.size()) l_completion.clear();
                 if(str_index < str_len && !INT10_GetInsertState()) { //mem_readb(BIOS_KEYBOARD_FLAGS1)&0x80) dev_con.h ?
                     outc(' ');//move cursor one to the right.
-                    Bit16u a = str_len - str_index;
-                    Bit8u* text=reinterpret_cast<Bit8u*>(&line[str_index]);
+                    uint16_t a = str_len - str_index;
+                    uint8_t* text=reinterpret_cast<uint8_t*>(&line[str_index]);
                     DOS_WriteFile(STDOUT,text,&a);//write buffer to screen
                     backone();//undo the cursor the right.
                     for(Bitu i=str_len;i>str_index;i--) {
@@ -721,7 +823,7 @@ void DOS_Shell::InputCommand(char * line) {
 
 	// remove current command from history if it's there
 	if (current_hist) {
-		current_hist=false;
+		// current_hist=false;
 		l_history.pop_front();
 	}
 
@@ -734,6 +836,7 @@ void DOS_Shell::InputCommand(char * line) {
 	ProcessCmdLineEnvVarStitution(line);
 }
 
+void XMS_DOS_LocalA20DisableIfNotEnabled(void);
 
 /* WARNING: Substitution is carried out in-place!
  * Buffer pointed to by "line" must be at least CMD_MAXLINE+1 bytes long! */
@@ -870,10 +973,12 @@ overflow:
 	WriteOut("Command input error: string expansion overflow\n");
 }
 
+int infix=-1;
 std::string full_arguments = "";
 intptr_t hret=0;
-bool infix=false, winautorun=false;
-extern bool packerr, reqwin, startwait, ctrlbrk, mountwarning;
+bool dos_a20_disable_on_exec=false;
+bool winautorun=false;
+extern bool packerr, reqwin, startwait, startquiet, ctrlbrk, mountwarning;
 #if defined (WIN32) && !defined(HX_DOS)
 void EndRunProcess() {
     if(hret) {
@@ -889,7 +994,7 @@ bool DOS_Shell::Execute(char* name, const char* args) {
 /* return true  => don't check for hardware changes in do_command 
  * return false =>       check for hardware changes in do_command */
 	char fullname[DOS_PATHLENGTH+4]; //stores results from Which
-    const char* p_fullname;
+	const char* p_fullname;
 	char line[CMD_MAXLINE];
 	if(strlen(args)!= 0){
 		if(*args != ' '){ //put a space in front
@@ -905,13 +1010,13 @@ bool DOS_Shell::Execute(char* name, const char* args) {
 		line[0]=0;
 	}
 
+	const Section_prop* sec = static_cast<Section_prop*>(control->GetSection("dos"));
 	/* check for a drive change */
 	if (((strcmp(name + 1, ":") == 0) || (strcmp(name + 1, ":\\") == 0)) && isalpha(*name) && !control->SecureMode())
 	{
 		if (strrchr(name,'\\')) { WriteOut(MSG_Get("SHELL_EXECUTE_ILLEGAL_COMMAND"),name); return true; }
 		if (!DOS_SetDrive(toupper(name[0])-'A')) {
 #ifdef WIN32
-            const Section_prop* sec = 0; sec = static_cast<Section_prop*>(control->GetSection("dos"));
 			if(!sec->Get_bool("automount")) { WriteOut(MSG_Get("SHELL_EXECUTE_DRIVE_NOT_FOUND"),toupper(name[0])); return true; }
 			// automount: attempt direct letter to drive map.
 			int type=GetDriveType(name);
@@ -925,7 +1030,7 @@ first_1:
 			else { WriteOut(MSG_Get("SHELL_EXECUTE_DRIVE_NOT_FOUND"),toupper(name[0])); return true; }
 
 first_2:
-		Bit8u c;Bit16u n=1;
+		uint8_t c;uint16_t n=1;
 		DOS_ReadFile (STDIN,&c,&n);
 		do switch (c) {
 			case 'n':			case 'N':
@@ -1059,7 +1164,7 @@ continue_1:
 		cmdtail.count = 0;
         memset(&cmdtail.buffer,0,CTBUF); //Else some part of the string is unitialized (valgrind)
         if (strlen(line)>=CTBUF) line[CTBUF-1]=0;
-		cmdtail.count=(Bit8u)strlen(line);
+		cmdtail.count=(uint8_t)strlen(line);
 		memcpy(cmdtail.buffer,line,strlen(line));
 		cmdtail.buffer[strlen(line)]=0xd;
 		/* Copy command line in stack block too */
@@ -1089,8 +1194,8 @@ continue_1:
 		parseline[255] = parseline[256] = parseline[257] = 0; //Just to be safe.
 
 		/* Parse FCB (first two parameters) and put them into the current DOS_PSP */
-		Bit8u add;
-		Bit16u skip = 0;
+		uint8_t add;
+		uint16_t skip = 0;
 		//find first argument, we end up at parseline[256] if there is only one argument (similar for the second), which exists and is 0.
 		while(skip < 256 && parseline[skip] == 0) skip++;
 		FCB_Parsename(dos.psp(),0x5C,0x01,parseline + skip,&add);
@@ -1108,8 +1213,8 @@ continue_1:
 		block.SaveData();
 #if 0
 		/* Save CS:IP to some point where i can return them from */
-		Bit32u oldeip=reg_eip;
-		Bit16u oldcs=SegValue(cs);
+		uint32_t oldeip=reg_eip;
+		uint16_t oldcs=SegValue(cs);
 		RealPt newcsip=CALLBACK_RealPointer(call_shellstop);
 		SegSet16(cs,RealSeg(newcsip));
 		reg_ip=RealOff(newcsip);
@@ -1132,24 +1237,40 @@ continue_1:
 		reg_eip=oldeip;
 		SegSet16(cs,oldcs);
 #endif
-		if (packerr&&!infix) {
-			Bit16u segment;
-			Bit16u blocks = (Bit16u)(64*1024/16);
+		if (packerr&&infix<0&&sec->Get_bool("autoa20fix")) {
+			LOG(LOG_DOSMISC,LOG_DEBUG)("Attempting autoa20fix workaround for EXEPACK error");
+			if (autofixwarn==1||autofixwarn==3) WriteOut("\r\n\033[41;1m\033[1;37;1mDOSBox-X\033[0m Failed to load the executable\r\n\033[41;1m\033[37;1mDOSBox-X\033[0m Now try again with A20 fix...\r\n");
+			infix=0;
+			dos_a20_disable_on_exec=true;
+			Execute(name, args);
+			dos_a20_disable_on_exec=false;
+			infix=-1;
+		}
+		else if (packerr&&infix<1&&sec->Get_bool("autoloadfix")) {
+			uint16_t segment;
+			uint16_t blocks = (uint16_t)(1); /* start with one paragraph, resize up later. see if it comes up below the 64KB mark */
 			if (DOS_AllocateMemory(&segment,&blocks)) {
-				DOS_MCB mcb((Bit16u)(segment-1));
-				mcb.SetPSPSeg(0x40);
-				WriteOut("\r\nNow run it with LOADFIX..\r\n");
-				infix=true;
-				Execute(name, args);
-				infix=false;
+				DOS_MCB mcb((uint16_t)(segment-1));
+				if (segment < 0x1000) {
+					uint16_t needed = 0x1000 - segment;
+					DOS_ResizeMemory(segment,&needed);
+                }
+                mcb.SetPSPSeg(0x40); /* FIXME: Wouldn't 0x08, a magic value used to show ownership by MS-DOS, be more appropriate here? */
+                LOG(LOG_DOSMISC,LOG_DEBUG)("Attempting autoloadfix workaround for EXEPACK error");
+                if (autofixwarn==2||autofixwarn==3) WriteOut("\r\n\033[41;1m\033[1;37;1mDOSBox-X\033[0m Failed to load the executable\r\n\033[41;1m\033[37;1mDOSBox-X\033[0m Now try again with LOADFIX...\r\n");
+                infix=1;
+                Execute(name, args);
+                infix=-1;
 				DOS_FreeMemory(segment);
 			}
+		} else if (packerr&&infix<2&&!autofixwarn) {
+            WriteOut("Packed file is corrupt");
 #if defined (WIN32) && !defined(HX_DOS)
 		} else if (winautorun&&reqwin&&!control->SecureMode()) {
             char comline[256], *p=comline;
             char winDirCur[512], winDirNew[512], winName[256];
-            Bit8u drive;
-            if (!DOS_MakeName(name, winDirNew, &drive)) return false;
+            uint8_t drive;
+            if (!DOS_MakeName(fullname, winDirNew, &drive)) return false;
             if (GetCurrentDirectory(512, winDirCur)&&(!strncmp(Drives[drive]->GetInfo(),"local ",6)||!strncmp(Drives[drive]->GetInfo(),"CDRom ",6))) {
                 bool useoverlay=false;
                 Overlay_Drive *odp = dynamic_cast<Overlay_Drive*>(Drives[drive]);
@@ -1173,28 +1294,52 @@ continue_1:
                     strcat(winDirNew, Drives[drive]->curdir);
                 }
                 if (SetCurrentDirectory(winDirNew)) {
+                    SHELLEXECUTEINFO lpExecInfo;
                     strcpy(comline, args);
                     strcpy(comline, trim(p));
-                    char qwinName[258];
-                    sprintf(qwinName,"\"%s\"",winName);
-                    WriteOut("Now run it as a Windows application...\r\n");
-                    hret = _spawnl(P_NOWAIT, winName, qwinName, comline, NULL);
+                    if (!startquiet) WriteOut("Now run it as a Windows application...\r\n");
+                    char dir[CROSS_LEN+15];
+                    DWORD temp = (DWORD)SHGetFileInfo(winName,NULL,NULL,NULL,SHGFI_EXETYPE);
+                    if (temp==0) temp = (DWORD)SHGetFileInfo((std::string(winDirNew)+"\\"+std::string(fullname)).c_str(),NULL,NULL,NULL,SHGFI_EXETYPE);
+                    if (HIWORD(temp)==0 && LOWORD(temp)==0x4550) { // Console applications
+                        lpExecInfo.cbSize  = sizeof(SHELLEXECUTEINFO);
+                        lpExecInfo.fMask=SEE_MASK_DOENVSUBST|SEE_MASK_NOCLOSEPROCESS;
+                        lpExecInfo.hwnd = NULL;
+                        lpExecInfo.lpVerb = "open";
+                        lpExecInfo.lpDirectory = NULL;
+                        lpExecInfo.nShow = SW_SHOW;
+                        lpExecInfo.hInstApp = (HINSTANCE) SE_ERR_DDEFAIL;
+                        strcpy(dir, "/C \"");
+                        strcat(dir, winName);
+                        strcat(dir, " ");
+                        strcat(dir, comline);
+                        strcat(dir, " & echo( & echo The command execution is completed. & pause\"");
+                        lpExecInfo.lpFile = "CMD.EXE";
+                        lpExecInfo.lpParameters = dir;
+                        ShellExecuteEx(&lpExecInfo);
+                        hret = (intptr_t)lpExecInfo.hProcess;
+                    } else {
+                        char qwinName[258];
+                        sprintf(qwinName,"\"%s\"",winName);
+                        hret = _spawnl(P_NOWAIT, winName, qwinName, comline, NULL);
+                    }
                     SetCurrentDirectory(winDirCur);
                     if (startwait && hret > 0) {
-                        bool first=true;
+                        int count=0;
                         ctrlbrk=false;
                         DWORD exitCode = 0;
+                        GetExitCodeProcess((HANDLE)hret, &exitCode);
                         while (GetExitCodeProcess((HANDLE)hret, &exitCode) && exitCode == STILL_ACTIVE) {
                             CALLBACK_Idle();
                             if (ctrlbrk) {
-                                Bit8u c;Bit16u n=1;
+                                uint8_t c;uint16_t n=1;
                                 DOS_ReadFile (STDIN,&c,&n);
                                 if (c == 3) WriteOut("^C\n");
                                 EndRunProcess();
                                 exitCode=0;
                                 break;
                             }
-                            if (first) {WriteOut("(Press Ctrl+C to exit immediately)\n");first=false;}
+                            if (++count==20000&&!startquiet) WriteOut("(Press Ctrl+C to exit immediately)\n");
                         }
                         dos.return_code = exitCode&255;
                         dos.return_mode = 0;
@@ -1203,12 +1348,14 @@ continue_1:
                         hret = 0;
                     else
                         hret = errno;
-                    DOS_SetError((Bit16u)hret);
+                    DOS_SetError((uint16_t)hret);
                     bool ret=hret == 0;
                     hret=0;
                     return ret;
-                }
-            }
+                } else if (startquiet)
+                    WriteOut("This program cannot be run in DOS mode.\n");
+            } else if (startquiet)
+                WriteOut("This program cannot be run in DOS mode.\n");
 #endif
         }
 		packerr=false;
