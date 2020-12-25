@@ -424,18 +424,23 @@ bool Memory::BigEndian::get() {
 }
 
 unsigned char Memory::PeekByte(long long addr) {
-    PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
-    PhysPt ptr;
-    ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-    return phys_readb(ptr);
+    if(addr < Memory::Size)
+    {
+        PhysPt ptr;
+        ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
+        return phys_readb(ptr);
+    }
+    return 0;
 }
 
 void Memory::PokeByte(long long addr, unsigned char val) {
-    PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
-    PhysPt ptr;
-    ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-    phys_writeb(ptr, val);
-
+    if(addr < Memory::Size)
+    {
+        //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
+        PhysPt ptr;
+        ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
+        phys_writeb(ptr, val);
+    }
 }
 
 array<unsigned char>^ Memory::PeekBytes(long long address, int length) {
