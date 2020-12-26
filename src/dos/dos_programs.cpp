@@ -689,6 +689,8 @@ void MenuBrowseProgramFile() {
         }
         std::size_t found = full.find_last_of("/\\");
         std::string pathname = full.substr(0,found), filename = full.substr(found+1);
+        LOG_MSG("Loading %s.", full);
+        VanguardClientUnmanaged::LOAD_GAME_START(full);
         clearline=true;
         bool exist=Drives[drv-'A'];
 		char mountstring[DOS_PATHLENGTH+CROSS_LEN+20];
@@ -763,7 +765,6 @@ void MenuBrowseProgramFile() {
             DOS_WriteFile(STDOUT,&c,&n);
         }
 		shell.ShowPrompt();
-        VanguardClientUnmanaged::LOAD_GAME_DONE();
 	}
 
 	chdir( Temp_CurrentDir );
