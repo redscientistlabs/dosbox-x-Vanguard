@@ -272,7 +272,7 @@ void VanguardClient::StartClient() {
             enableRTC = false;
         }
     }
-    //RefreshDomains();
+    RefreshDomains();
 
     receiver = gcnew NetCoreReceiver();
     receiver->Attached = attached;
