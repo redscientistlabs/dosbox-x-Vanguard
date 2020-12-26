@@ -132,7 +132,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::GAMENAME, String::Empty);
     partial->Set(VSPEC::SYSTEMPREFIX, String::Empty);
-    partial->Set(VSPEC::OPENROMFILENAME, "");
+    partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
     partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"VRAM"});
@@ -827,6 +827,7 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     VanguardClient::lastStateName = filename;
     VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
     LOG_MSG("Savestate filename is %s", VanguardClient::fileToCopy);
+    Thread::Sleep(2000);
     IO::File::Copy(VanguardClient::fileToCopy, filename);
     return true;
 }

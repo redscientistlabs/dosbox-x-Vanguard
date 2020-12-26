@@ -86,7 +86,8 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
-    SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
+    SaveState::instance().save(1);
+    SaveState::instance().getName(1);
     return file;
 }
 
