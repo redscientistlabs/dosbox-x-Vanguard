@@ -20,6 +20,7 @@
 #include <setup.h>
 #include "control.h"
 #include <msclr/marshal_cppstd.h>
+#include <src/hardware/vga_memory.cpp>
 
 #include "UnmanagedWrapper.h"
 #include <src/hardware/mame/emu.h>
@@ -90,7 +91,7 @@ public:
     static String^ emuDir = IO::Path::GetDirectoryName(Assembly::GetExecutingAssembly()->Location);
     static String^ logPath = IO::Path::Combine(emuDir, "EMU_LOG.txt");
 
-    static array<String^>^ configPaths;
+    static cli::array<String^>^ configPaths;
 
     static volatile bool loading = false;
     static volatile bool stateLoading = false;
@@ -135,7 +136,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::OPENROMFILENAME, "IGNORE");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
-    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"VRAM"});
+    partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew cli::array<String^>{"VRAM"});
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::LOADSTATE_USES_CALLBACKS, true);
     partial->Set(VSPEC::EMUDIR, VanguardClient::emuDir);
@@ -178,7 +179,7 @@ static Assembly^ CurrentDomain_AssemblyResolve(Object^ sender, ResolveEventArgs^
         String^ requested = args->Name;
         Monitor::Enter(AppDomain::CurrentDomain);
         {
-            array<Assembly^>^ asms = AppDomain::CurrentDomain->GetAssemblies();
+            cli::array<Assembly^>^ asms = AppDomain::CurrentDomain->GetAssemblies();
             for(int i = 0; i < asms->Length; i++) {
                 Assembly^ a = asms[i];
                 if(a->FullName == requested) {
@@ -245,7 +246,7 @@ void VanguardClientInitializer::StartVanguardClient()
     SyncObjectSingleton::UseQueue = true;
 
     // Start everything
-    VanguardClient::configPaths = gcnew array<String^>{""
+    VanguardClient::configPaths = gcnew cli::array<String^>{""
     };
 
     VanguardClient::StartClient();
@@ -329,7 +330,7 @@ public:
     property int WordSize { virtual int get(); }
     property bool BigEndian { virtual bool get(); }
     virtual unsigned char PeekByte(long long addr);
-    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
     virtual void PokeByte(long long addr, unsigned char val);
 };
 
@@ -341,7 +342,7 @@ public:
     property int WordSize { virtual int get(); }
     property bool BigEndian { virtual bool get(); }
     virtual unsigned char PeekByte(long long addr);
-    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
     virtual void PokeByte(long long addr, unsigned char val);
 };
 
@@ -353,7 +354,7 @@ public:
 //    property int WordSize { virtual int get(); }
 //    property bool BigEndian { virtual bool get(); }
 //    virtual unsigned char PeekByte(long long addr);
-//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
 //    virtual void PokeByte(long long addr, unsigned char val);
 //};
 //public
@@ -364,7 +365,7 @@ public:
 //    property int WordSize { virtual int get(); }
 //    property bool BigEndian { virtual bool get(); }
 //    virtual unsigned char PeekByte(long long addr);
-//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
 //    virtual void PokeByte(long long addr, unsigned char val);
 //};
 //public
@@ -375,7 +376,7 @@ public:
 //    property int WordSize { virtual int get(); }
 //    property bool BigEndian { virtual bool get(); }
 //    virtual unsigned char PeekByte(long long addr);
-//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
 //    virtual void PokeByte(long long addr, unsigned char val);
 //};
 //public
@@ -386,7 +387,7 @@ public:
 //    property int WordSize { virtual int get(); }
 //    property bool BigEndian { virtual bool get(); }
 //    virtual unsigned char PeekByte(long long addr);
-//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+//    virtual cli::array<unsigned char>^ PeekBytes(long long address, int length);
 //    virtual void PokeByte(long long addr, unsigned char val);
 //};
 
@@ -464,7 +465,7 @@ void RAM::PokeByte(long long addr, unsigned char val) {
 
 cli::array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
 
-    cli::array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+    cli::array<unsigned char>^ bytes = gcnew cli::array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
         bytes[i] = PeekByte(address + i);
     }
@@ -520,7 +521,7 @@ void VRAM::PokeByte(long long addr, unsigned char val) {/*
 }
 
 cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
-    cli::array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+    cli::array<unsigned char>^ bytes = gcnew cli::array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
         bytes[i] = PeekByte(address + i);
     }
@@ -552,8 +553,8 @@ cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
 //    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, RAM::Mixer_RAM_PADDR);
 //}
 //
-//array<unsigned char>^ Mixer::PeekBytes(long long address, int length) {
-//    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+//cli::array<unsigned char>^ Mixer::PeekBytes(long long address, int length) {
+//    cli::array<unsigned char>^ bytes = gcnew cli::array<unsigned char>(length);
 //    for(int i = 0; i < length; i++) {
 //        bytes[i] = PeekByte(address + i);
 //    }
@@ -585,8 +586,8 @@ cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
 //    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, RAM::N3DS_EXTRA_RAM_PADDR);
 //}
 //
-//array<unsigned char>^ CPU::PeekBytes(long long address, int length) {
-//    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+//cli::array<unsigned char>^ CPU::PeekBytes(long long address, int length) {
+//    cli::array<unsigned char>^ bytes = gcnew cli::array<unsigned char>(length);
 //    for(int i = 0; i < length; i++) {
 //        bytes[i] = PeekByte(address + i);
 //    }
@@ -595,19 +596,19 @@ cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
 //#pragma endregion
 
 
-static array<MemoryDomainProxy^>^ GetInterfaces() {
+static cli::array<MemoryDomainProxy^>^ GetInterfaces() {
 
     if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
-        return gcnew array<MemoryDomainProxy^>(0);
-    array<MemoryDomainProxy^>^ interfaces = gcnew array<MemoryDomainProxy^>(1);
+        return gcnew cli::array<MemoryDomainProxy^>(0);
+    cli::array<MemoryDomainProxy^>^ interfaces = gcnew cli::array<MemoryDomainProxy^>(1);
     interfaces[0] = (gcnew MemoryDomainProxy(gcnew RAM));
     //interfaces[1] = (gcnew MemoryDomainProxy(gcnew VRAM));
     return interfaces;
 }
 
 static bool RefreshDomains(bool updateSpecs = true) {
-    array<MemoryDomainProxy^>^ oldInterfaces = AllSpec::VanguardSpec->Get<array<MemoryDomainProxy^>^>(VSPEC::MEMORYDOMAINS_INTERFACES);
-    array<MemoryDomainProxy^>^ newInterfaces = GetInterfaces();
+    cli::array<MemoryDomainProxy^>^ oldInterfaces = AllSpec::VanguardSpec->Get<cli::array<MemoryDomainProxy^>^>(VSPEC::MEMORYDOMAINS_INTERFACES);
+    cli::array<MemoryDomainProxy^>^ newInterfaces = GetInterfaces();
     LOG_MSG("RAM Domains refreshed.");
 
     // Bruteforce it since domains can c`   hange inconsistently in some configs and we keep code
@@ -920,7 +921,7 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
                             break;
 
     case LOADSAVESTATE: {
-        array<Object^>^ cmd = static_cast<array<Object^>^>(advancedMessage->objectValue);
+        cli::array<Object^>^ cmd = static_cast<cli::array<Object^>^>(advancedMessage->objectValue);
         String^ path = static_cast<String^>(cmd[0]);
         std::string converted_path = Helpers::systemStringToUtf8String(path);
 
