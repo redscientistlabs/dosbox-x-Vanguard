@@ -20,7 +20,7 @@
 #include <setup.h>
 #include "control.h"
 #include <msclr/marshal_cppstd.h>
-#include <src/hardware/vga_memory.cpp>
+//#include <src/hardware/vga_memory.cpp>
 
 #include "UnmanagedWrapper.h"
 #include <src/hardware/mame/emu.h>
