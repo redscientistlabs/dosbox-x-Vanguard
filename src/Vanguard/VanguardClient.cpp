@@ -427,7 +427,7 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return (char)(phys_readb(ptr));
+        return (u8)(phys_readb(ptr));
     }
     else
     {
