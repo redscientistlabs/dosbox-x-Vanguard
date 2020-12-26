@@ -121,8 +121,8 @@ getDefaultPartial() {
     partial->Set(VSPEC::NAME, "DOSBox-X");
     partial->Set(VSPEC::SUPPORTS_RENDERING, false);
     partial->Set(VSPEC::SUPPORTS_CONFIG_MANAGEMENT, false);
-    partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, false);
-    partial->Set(VSPEC::SUPPORTS_KILLSWITCH, false);
+    partial->Set(VSPEC::SUPPORTS_CONFIG_HANDOFF, true);
+    partial->Set(VSPEC::SUPPORTS_KILLSWITCH, true);
     partial->Set(VSPEC::SUPPORTS_REALTIME, true);
     partial->Set(VSPEC::SUPPORTS_SAVESTATES, true);
     partial->Set(VSPEC::SUPPORTS_REFERENCES, true);
@@ -825,7 +825,9 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     std::string s = Helpers::systemStringToUtf8String(filename);
     const char* converted_filename = s.c_str();
     VanguardClient::lastStateName = filename;
-    VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
+    VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE());
+    LOG_MSG("Savestate filename is %s", VanguardClient::fileToCopy);
+    IO::File::Copy(VanguardClient::fileToCopy, filename);
     return true;
 }
 
@@ -874,10 +876,10 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
         std::string converted_path = Helpers::systemStringToUtf8String(path);
 
         // Load up the sync settings
-        String^ settingStr = AllSpec::VanguardSpec->Get<String^>(VSPEC::SYNCSETTINGS);
-        if(!String::IsNullOrEmpty(settingStr)) {
+        //String^ settingStr = AllSpec::VanguardSpec->Get<String^>(VSPEC::SYNCSETTINGS);
+        /*if(!String::IsNullOrEmpty(settingStr)) {
             VanguardClient::SetSyncSettings(settingStr);
-        }
+        }*/
         bool success = LoadState(converted_path);
         // bool success = true;
         e->setReturnValue(success);
@@ -888,7 +890,7 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
         String^ Key = (String^)(advancedMessage->objectValue);
 
         //Save the syncsettings
-        AllSpec::VanguardSpec->Set(VSPEC::SYNCSETTINGS, VanguardClient::GetSyncSettings());
+        //AllSpec::VanguardSpec->Set(VSPEC::SYNCSETTINGS, VanguardClient::GetSyncSettings());
 
         // Build the shortname
         String^ quickSlotName = Key + ".timejump";

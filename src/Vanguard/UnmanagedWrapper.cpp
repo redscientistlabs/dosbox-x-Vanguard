@@ -67,11 +67,12 @@ void UnmanagedWrapper::VANGUARD_LOADSTATE(const std::string& file) {
     //}
     //Core::System::GetInstance().SendSignal(Core::System::Signal::LoadVanguard, 9);
     //SaveState::save(SaveState::SLOT_COUNT);
-    SaveState::instance().load(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
+    SaveState::instance().load(1);
+    UnmanagedWrapper::VANGUARD_LOADSTATE_DONE();
     return;
 }
 
-std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
+std::string UnmanagedWrapper::VANGUARD_SAVESTATE() {
 
     //Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 9);
 
@@ -85,8 +86,9 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
-    SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
-    return "";
+    SaveState::instance().save(1);
+    LOG_MSG("savestate name is %s", SaveState::instance().getName(1));
+    return SaveState::instance().getName(1);
 }
 
 void UnmanagedWrapper::VANGUARD_LOADSTATE_DONE() {
