@@ -4567,11 +4567,9 @@ std::string compress(const std::string& input) { //throw (SaveState::Error)
 	output.resize(bufferSize);
 
 	uLongf actualSize = bufferSize;
-    //RTC_Hijack: no compress plz
 	if (::compress2(reinterpret_cast<Bytef*>(&output[0]), &actualSize,
 					reinterpret_cast<const Bytef*>(input.c_str()), (uLong)input.size(), Z_BEST_SPEED) != Z_OK)
 		throw SaveState::Error("Compression failed!");
-    //RTC_Hijack end
 	output.resize(actualSize);
 
 	//save size of uncompressed data
@@ -5313,8 +5311,9 @@ int my_minizip(char ** savefile, char ** savefile2, char* savename=NULL) {
 int flagged_backup(char *zip);
 int flagged_restore(char* zip);
 
-void SaveState::save(size_t slot) { //throw (Error)
-	if (slot >= SLOT_COUNT*MAX_PAGE)  return;
+//RTC_Hijack : Save now returns the path
+std::string SaveState::save(size_t slot) { //throw (Error)
+	if (slot >= SLOT_COUNT*MAX_PAGE)  return "";
 	SDL_PauseAudio(0);
 	bool save_err=false;
     //RTC_Hijack: we can have more than 1gb I'm sure that won't break shit
@@ -5498,6 +5497,8 @@ delete_all:
 		notifyError("Failed to save the current state.");
 	else
 		LOG_MSG("[%s]: Saved. (Slot %d)", getTime().c_str(), (int)slot+1);
+
+    return save;
 }
 
 void savestatecorrupt(const char* part) {

@@ -296,7 +296,8 @@ public:
    typedef std::string Error;
     static const size_t MAX_PAGE = 10, SLOT_COUNT = 10; //slot: [0,...,SLOT_COUNT - 1]
 
-    void save   (size_t slot);       //throw (Error)
+    //RTC_Hijack : save returns string
+    std::string save   (size_t slot);       //throw (Error)
     void load   (size_t slot) const; //throw (Error)
     bool isEmpty(size_t slot) const;
     void removeState(size_t slot) const;

@@ -26,6 +26,7 @@
 #include "callback.h"
 #include "debug.h"
 #include "cpu.h"
+#include <src\Vanguard\VanguardClient.h>
 
 const char * RunningProgram="DOSBOX-X";
 
@@ -107,6 +108,9 @@ void DOS_UpdatePSPName(void) {
 	}
 	RunningProgram = name;
 	GFX_SetTitle(-1,-1,-1,false);
+
+    //RTC_Hijack : Game done loading is assumed when the RunningProgram variable needs to get updated
+    VanguardClientUnmanaged::LOAD_GAME_DONE();
 }
 
 void DOS_Terminate(uint16_t pspseg,bool tsr,uint8_t exitcode) {
