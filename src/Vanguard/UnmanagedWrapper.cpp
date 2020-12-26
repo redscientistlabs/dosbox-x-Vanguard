@@ -86,11 +86,13 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
+
     SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
     const std::string& filetemp = file + ".temp";
     System::IO::FileStream ^ fs = System::IO::File::OpenWrite(gcnew System::String(filetemp.c_str()));
     fs->Close();
     return filetemp;
+
 }
 
 void UnmanagedWrapper::VANGUARD_LOADSTATE_DONE() {
