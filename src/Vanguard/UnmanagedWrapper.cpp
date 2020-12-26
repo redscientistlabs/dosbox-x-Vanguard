@@ -86,9 +86,8 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE() {
     //    }*/
     //    return GetSaveStatePath(title_id, 9);
     //}
-    SaveState::instance().save(1);
-    LOG_MSG("savestate name is %s", SaveState::instance().getName(1));
-    return SaveState::instance().getName(1);
+    SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
+    return file;
 }
 
 void UnmanagedWrapper::VANGUARD_LOADSTATE_DONE() {
