@@ -132,7 +132,7 @@ getDefaultPartial() {
     partial->Set(VSPEC::SYSTEM, String::Empty);
     partial->Set(VSPEC::GAMENAME, String::Empty);
     partial->Set(VSPEC::SYSTEMPREFIX, String::Empty);
-    partial->Set(VSPEC::OPENROMFILENAME, "placeholder");
+    partial->Set(VSPEC::OPENROMFILENAME, "");
     partial->Set(VSPEC::OVERRIDE_DEFAULTMAXINTENSITY, 100000);
     partial->Set(VSPEC::SYNCSETTINGS, String::Empty);
     partial->Set(VSPEC::MEMORYDOMAINS_BLACKLISTEDDOMAINS, gcnew array<String^>{"VRAM"});
@@ -744,9 +744,9 @@ enum COMMANDS {
 };
 
 inline COMMANDS CheckCommand(String^ inString) {
-    if(inString == RTCV::NetCore::Commands::Remote::LoadState )
+    if(inString == RTCV::NetCore::Commands::Basic::LoadSavestate)
         return LOADSAVESTATE;
-    else if(inString == RTCV::NetCore::Commands::Remote::SaveState)
+    else if(inString == RTCV::NetCore::Commands::Basic::SaveSavestate)
         return SAVESAVESTATE;
     else if(inString == RTCV::NetCore::Commands::Remote::LoadROM)
         return REMOTE_LOADROM;
