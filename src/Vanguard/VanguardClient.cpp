@@ -819,7 +819,7 @@ bool VanguardClient::LoadState(std::string filename) {
             return false;
         }
     } while(stateLoading);
-    //RefreshDomains();
+    RefreshDomains();
     return true;
 }
 
