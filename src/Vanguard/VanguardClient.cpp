@@ -804,6 +804,8 @@ bool VanguardClient::LoadState(std::string filename) {
     RtcClock::ResetCount();
     stateLoading = true;
     UnmanagedWrapper::VANGUARD_LOADSTATE(filename);
+
+    UnmanagedWrapper::VANGUARD_LOADSTATE_DONE();
     // We have to do it this way to prevent deadlock due to synced calls. It sucks but it's required
     // at the moment
     int i = 0;
@@ -828,6 +830,7 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
     LOG_MSG("Savestate filename is %s", VanguardClient::fileToCopy);
     IO::File::Copy(VanguardClient::fileToCopy, filename);
+    VanguardClientUnmanaged::SAVE_STATE_DONE();
     return true;
 }
 
@@ -835,8 +838,18 @@ void VanguardClientUnmanaged::SAVE_STATE_DONE() {
     if(!VanguardClient::enableRTC || VanguardClient::fileToCopy == nullptr ||
         VanguardClient::fileToCopy == "")
         return;
-    Thread::Sleep(2000);
-    System::IO::File::Copy(VanguardClient::fileToCopy, VanguardClient::lastStateName, true);
+    //Thread::Sleep(2000);
+    //System::IO::File::Copy(VanguardClient::fileToCopy, VanguardClient::lastStateName, true);
+
+    String^ gameName = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_GETGAMENAME());
+
+    //force update current game after savestate until we can detect an actual game change
+    //TODO: Replace this with proper handling
+    PartialSpec^ gameDone = gcnew PartialSpec("VanguardSpec");
+    char replaceChar = L'-';
+    gameDone->Set(VSPEC::GAMENAME,
+        StringExtensions::MakeSafeFilename(gameName, replaceChar));
+    AllSpec::VanguardSpec->Update(gameDone, true, false);
 }
 
 // No fun anonymous classes with closure here
