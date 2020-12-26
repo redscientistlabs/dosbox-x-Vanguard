@@ -72,7 +72,7 @@ void UnmanagedWrapper::VANGUARD_LOADSTATE(const std::string& file) {
     return;
 }
 
-std::string UnmanagedWrapper::VANGUARD_SAVESTATE() {
+std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
 
     //Core::System::GetInstance().SendSignal(Core::System::Signal::Save, 9);
 
