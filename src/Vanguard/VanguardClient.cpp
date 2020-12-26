@@ -427,7 +427,7 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return (u8)(phys_readb(ptr));
+        return (char)(phys_readb(ptr));
     }
     else
     {
@@ -442,7 +442,7 @@ void RAM::PokeByte(long long addr, unsigned char val) {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        phys_writeb(ptr, (u8)val);
+        phys_writeb(ptr, val);
     }
     else
     {
