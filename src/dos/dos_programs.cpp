@@ -735,6 +735,7 @@ void MenuBrowseProgramFile() {
 		chdir( Temp_CurrentDir );
         DOS_Shell shell;
         shell.Execute(name1," ");
+
         if (!strcasecmp(ext,".bat")) {
             bool echo=shell.echo;
             shell.echo=false;
@@ -762,6 +763,7 @@ void MenuBrowseProgramFile() {
             DOS_WriteFile(STDOUT,&c,&n);
         }
 		shell.ShowPrompt();
+        VanguardClientUnmanaged::LOAD_GAME_DONE();
 	}
 
 	chdir( Temp_CurrentDir );
