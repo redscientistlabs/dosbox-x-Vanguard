@@ -68,7 +68,7 @@ void UnmanagedWrapper::VANGUARD_LOADSTATE(const std::string& file) {
     //Core::System::GetInstance().SendSignal(Core::System::Signal::LoadVanguard, 9);
     //SaveState::save(SaveState::SLOT_COUNT);
     //SaveState::instance().load(1);
-    SaveState::instance().load(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
+    SaveState::instance().load(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1, file);
     return;
 }
 
@@ -87,11 +87,11 @@ std::string UnmanagedWrapper::VANGUARD_SAVESTATE(const std::string& file) {
     //    return GetSaveStatePath(title_id, 9);
     //}
 
-    SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
+    std::string path = SaveState::instance().save(SaveState::SLOT_COUNT * SaveState::MAX_PAGE - 1);
     const std::string& filetemp = file + ".temp";
-    System::IO::FileStream ^ fs = System::IO::File::OpenWrite(gcnew System::String(filetemp.c_str()));
-    fs->Close();
-    return filetemp;
+    //System::IO::FileStream ^ fs = System::IO::File::OpenWrite(gcnew System::String(filetemp.c_str()));
+    //fs->Close();
+    return path;
 
 }
 

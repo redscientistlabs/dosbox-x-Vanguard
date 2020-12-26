@@ -5525,8 +5525,12 @@ bool loadstateconfirm(int ind) {
     confres=false;
     return ret;
 }
-
+//RTC_Hijack Redirect 1 parameter load to 2 parameter one
 void SaveState::load(size_t slot) const { //throw (Error)
+    load(slot, "");
+}
+//RTC_Hijack : accept file request for loading
+void SaveState::load(size_t slot, std::string requestFile) const { //throw (Error)
 //	if (isEmpty(slot)) return;
 	bool load_err=false;
 	if((MEM_TotalPages()*4096/1024/1024)>1024) {
@@ -5561,6 +5565,12 @@ void SaveState::load(size_t slot) const { //throw (Error)
 	std::stringstream slotname;
 	slotname << slot+1;
 	std::string save=use_save_file&&savefilename.size()?savefilename:temp+slotname.str()+".sav";
+
+    if(requestFile != "")
+    {
+        save = requestFile;
+    }
+
 	std::ifstream check_slot;
 	check_slot.open(save.c_str(), std::ifstream::in);
 	if(check_slot.fail()) {

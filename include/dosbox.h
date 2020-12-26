@@ -299,6 +299,7 @@ public:
     //RTC_Hijack : save returns string
     std::string save   (size_t slot);       //throw (Error)
     void load   (size_t slot) const; //throw (Error)
+    void load   (size_t slot, std::string requestFile) const; //throw (Error)
     bool isEmpty(size_t slot) const;
     void removeState(size_t slot) const;
     std::string getName(size_t slot, bool nl=false) const;
