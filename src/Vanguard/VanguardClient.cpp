@@ -462,9 +462,9 @@ void RAM::PokeByte(long long addr, unsigned char val) {
     }
 }
 
-array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
+cli::array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
 
-    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+    cli::array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
         bytes[i] = PeekByte(address + i);
     }
@@ -519,8 +519,8 @@ void VRAM::PokeByte(long long addr, unsigned char val) {/*
     ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));*/
 }
 
-array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
-    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
+    cli::array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
     for(int i = 0; i < length; i++) {
         bytes[i] = PeekByte(address + i);
     }
