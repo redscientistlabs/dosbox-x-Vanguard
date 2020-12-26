@@ -825,7 +825,7 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     std::string s = Helpers::systemStringToUtf8String(filename);
     const char* converted_filename = s.c_str();
     VanguardClient::lastStateName = filename;
-    VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE());
+    VanguardClient::fileToCopy = Helpers::utf8StringToSystemString(UnmanagedWrapper::VANGUARD_SAVESTATE(s));
     LOG_MSG("Savestate filename is %s", VanguardClient::fileToCopy);
     IO::File::Copy(VanguardClient::fileToCopy, filename);
     return true;
