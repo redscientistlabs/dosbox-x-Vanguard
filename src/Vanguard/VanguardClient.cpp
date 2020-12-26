@@ -333,17 +333,17 @@ public:
     virtual void PokeByte(long long addr, unsigned char val);
 };
 
-//public
-//ref class VRAM : RTCV::CorruptCore::IMemoryDomain {
-//public:
-//    property System::String^ Name { virtual System::String^ get(); }
-//    property long long Size { virtual long long get(); }
-//    property int WordSize { virtual int get(); }
-//    property bool BigEndian { virtual bool get(); }
-//    virtual unsigned char PeekByte(long long addr);
-//    virtual array<unsigned char>^ PeekBytes(long long address, int length);
-//    virtual void PokeByte(long long addr, unsigned char val);
-//};
+public
+ref class VRAM : RTCV::CorruptCore::IMemoryDomain {
+public:
+    property System::String^ Name { virtual System::String^ get(); }
+    property long long Size { virtual long long get(); }
+    property int WordSize { virtual int get(); }
+    property bool BigEndian { virtual bool get(); }
+    virtual unsigned char PeekByte(long long addr);
+    virtual array<unsigned char>^ PeekBytes(long long address, int length);
+    virtual void PokeByte(long long addr, unsigned char val);
+};
 
 //public
 //ref class Mixer : RTCV::CorruptCore::IMemoryDomain {
@@ -471,39 +471,62 @@ array<unsigned char>^ RAM::PeekBytes(long long address, int length) {
     return bytes;
 }
 #pragma endregion
-//#pragma region VRAM
-//String^ VRAM::Name::get() {
-//    return "VRAM";
-//}
-//
-//long long VRAM::Size::get() {
-//    return vga.mem.memsize;
-//}
-//
-//int VRAM::WordSize::get() {
-//    return WORD_SIZE;
-//}
-//
-//bool VRAM::BigEndian::get() {
-//    return BIG_ENDIAN;
-//}
-//
-//unsigned char VRAM::PeekByte(long long addr) {
-//    return UnmanagedWrapper::PADDR_PEEKBYTE(addr, NULL); //vga is nothing until we figure out how to expose vga :(
-//}
-//
-//void VRAM::PokeByte(long long addr, unsigned char val) {
-//    UnmanagedWrapper::PADDR_POKEBYTE(addr, val, NULL);
-//}
-//
-//array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
-//    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
-//    for(int i = 0; i < length; i++) {
-//        bytes[i] = PeekByte(address + i);
-//    }
-//    return bytes;
-//}
-//#pragma endregion
+#pragma region VRAM
+String^ VRAM::Name::get() {
+    return "VRAM";
+}
+
+long long VRAM::Size::get() {
+    Section_prop* section = static_cast<Section_prop*>(control->GetSection("dosbox"));
+    Bitu vmemsizekb = (Bitu)section->Get_int("vmemsizekb");
+    Bitu vmemsize = (Bitu)section->Get_int("vmemsize");
+
+    if(vmemsizekb == 0 && vmemsize < 1) vmemsize = 1;
+    else if(vmemsizekb != 0 && (Bits)vmemsize < 0) vmemsize = 0;
+
+    /* round up memsizekb to 4KB multiple */
+    vmemsizekb = (vmemsizekb + 3ul) & (~3ul);
+
+    /* roll memsize into memsizekb, simplify this code */
+    return (vmemsizekb / 1024 + vmemsize) * 1024ul * 1024ul;
+}
+
+int VRAM::WordSize::get() {
+    return WORD_SIZE;
+}
+
+bool VRAM::BigEndian::get() {
+    return BIG_ENDIAN;
+}
+
+unsigned char VRAM::PeekByte(long long addr) {
+    if(addr < VRAM::Size)
+    {/*
+        PhysPt ptr;
+        ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
+        */ //there is a vga pagehandler but it's not in vga.h and if I include the cpp it's defined in hell breaks loose
+        return 0;
+    }
+    else
+    {
+        LOG_MSG("Error : the provided address is bigger than the memory size!");
+        return 0;
+    }
+}
+
+void VRAM::PokeByte(long long addr, unsigned char val) {/*
+    PhysPt ptr;
+    ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));*/
+}
+
+array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
+    array<unsigned char>^ bytes = gcnew array<unsigned char>(length);
+    for(int i = 0; i < length; i++) {
+        bytes[i] = PeekByte(address + i);
+    }
+    return bytes;
+}
+#pragma endregion
 //#pragma region Mixer
 //String^ Mixer::Name::get() {
 //    return "Mixer";
