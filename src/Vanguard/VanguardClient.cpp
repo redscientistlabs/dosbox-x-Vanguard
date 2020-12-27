@@ -440,7 +440,7 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return (char)(phys_readb(ptr));
+        return (char)(phys_readb(addr));
     }
     else
     {
@@ -455,7 +455,7 @@ void RAM::PokeByte(long long addr, unsigned char val) {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        phys_writeb(ptr, val);
+        phys_writeb(addr, val);
     }
     else
     {
@@ -674,6 +674,7 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
     if(!VanguardClient::enableRTC)
         return;
     //StepActions::ClearStepBlastUnits();
+    NetCore::Commands::Remote::ClearStepBlastUnits;
     RtcClock::ResetCount();
 
     String^ gameName = Helpers::utf8StringToSystemString(romPath);
@@ -838,6 +839,7 @@ void VanguardClient::LoadRom(String^ filename) {
 
 bool VanguardClient::LoadState(std::string filename) {
     //StepActions::ClearStepBlastUnits();
+    NetCore::Commands::Remote::ClearStepBlastUnits;
     
     RtcClock::ResetCount();
     stateLoading = true;
