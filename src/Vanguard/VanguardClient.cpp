@@ -144,6 +144,7 @@ getDefaultPartial() {
     return partial;
 }
 
+static bool VanguardInitializationComplete = false;
 void VanguardClient::SpecUpdated(Object^ sender, SpecUpdateEventArgs^ e) {
     PartialSpec^ partial = e->partialSpec;
 
@@ -658,8 +659,9 @@ static void STEP_CORRUPT() // errors trapped by CPU_STEP
 
 #pragma region Hooks
 void VanguardClientUnmanaged::CORE_STEP() {
-    /*if(!VanguardClient::enableRTC)
-        return;*/
+    if(!VanguardInitializationComplete)
+        return;
+
     // Any step hook for corruption
     ActionDistributor::Execute("ACTION");
     STEP_CORRUPT();
@@ -917,8 +919,9 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
     case REMOTE_ALLSPECSSENT: {
         auto g = gcnew SyncObjectSingleton::GenericDelegate(&AllSpecsSent);
         SyncObjectSingleton::FormExecute(g);
+        VanguardInitializationComplete = true;
     }
-                            break;
+    break;
 
     case LOADSAVESTATE: {
         cli::array<Object^>^ cmd = static_cast<cli::array<Object^>^>(advancedMessage->objectValue);
