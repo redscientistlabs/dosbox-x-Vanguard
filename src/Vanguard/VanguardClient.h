@@ -2,7 +2,6 @@
 #pragma once
 #include <string>
 
-static bool Vanguard_Connected;
 class VanguardClientUnmanaged
 {
 public:

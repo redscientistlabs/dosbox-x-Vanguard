@@ -8872,7 +8872,6 @@ void Windows_DPI_Awareness_Init() {
 #endif
 
 bool VM_Boot_DOSBox_Kernel() {
-    Vanguard_Connected = false;
     if (!dos_kernel_disabled) {
         RemoveEMSPageFrame();
         RemoveUMBBlock();
