@@ -902,6 +902,7 @@ void Quit() {
 void AllSpecsSent() {
     VanguardClient::LoadWindowPosition();
     RefreshDomains();
+    Vanguard_Connected = true;
 }
 #pragma endregion
 
@@ -1066,3 +1067,4 @@ void VanguardSettingsWrapper::SetSettingsFromWrapper(VanguardSettingsWrapper^ vS
     //UnmanagedWrapper::nSettings.enable_Mixer_lle_multithread = vSettings->enable_Mixer_lle_multithread;
     UnmanagedWrapper::SetSettingsFromUnmanagedWrapper();
 }
+
