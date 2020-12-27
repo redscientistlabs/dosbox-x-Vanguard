@@ -30,6 +30,7 @@ void UnmanagedWrapper::VANGUARD_EXIT() {
     return;
 }
 
+
 std::string GetSaveStatePath() {
     return "";
 }
@@ -186,3 +187,30 @@ void UnmanagedWrapper::SetSettingsFromUnmanagedWrapper() {
     Settings::values.enable_dsp_lle = nSettings.enable_dsp_lle;
     Settings::values.enable_dsp_lle_multithread = nSettings.enable_dsp_lle_multithread;*/
 }
+
+
+
+//Vanguard menu hooks
+
+
+void UnmanagedWrapper::DOSBOX_LOADEXE() {
+    System::Environment::Exit(0);
+    return;
+}
+void UnmanagedWrapper::DOSBOX_LOADZIP() {
+    System::Environment::Exit(0);
+    return;
+}
+void UnmanagedWrapper::DOSBOX_LOADROM() {
+    System::Environment::Exit(0);
+    return;
+}
+void UnmanagedWrapper::DOSBOX_SAVEROM() {
+    System::Environment::Exit(0);
+    return;
+}
+void UnmanagedWrapper::DOSBOX_VANGUARDABOUT() {
+    System::Environment::Exit(0);
+    return;
+}
+

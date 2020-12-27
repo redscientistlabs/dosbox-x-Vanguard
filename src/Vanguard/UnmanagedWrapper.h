@@ -53,6 +53,11 @@ public:
     static void VANGUARD_RESUMEEMULATION();
     static void GetSettingsFromDOSBox();
     static void SetSettingsFromUnmanagedWrapper();
+    static void DOSBOX_LOADEXE();
+    static void DOSBOX_LOADZIP();
+    static void DOSBOX_LOADROM();
+    static void DOSBOX_SAVEROM();
+    static void DOSBOX_VANGUARDABOUT();
 
     static VanguardSettingsUnmanaged nSettings;
 

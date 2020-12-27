@@ -44,6 +44,10 @@
 
 #include <map>
 
+#include "Vanguard/VanguardClientInitializer.h"
+#include "Vanguard/VanguardClient.h"
+#include <src/Vanguard/UnmanagedWrapper.h>
+
 #if (C_AVCODEC)
 extern "C" {
 #include <libavutil/pixfmt.h>
@@ -1675,6 +1679,39 @@ void CAPTURE_AddWave(uint32_t freq, uint32_t len, int16_t * data) {
 #endif
 }
 
+
+
+//RTC_Hijack : Menu methods to call CLR
+void DOSBOX_LOADEXE(bool pressed)
+{
+    if(!pressed) return;
+    UnmanagedWrapper::DOSBOX_LOADEXE();
+}
+
+void DOSBOX_LOADZIP(bool pressed)
+{
+    if(!pressed) return;
+    UnmanagedWrapper::DOSBOX_LOADZIP();
+}
+
+void DOSBOX_LOADROM(bool pressed)
+{
+    if(!pressed) return;
+    UnmanagedWrapper::DOSBOX_LOADROM();
+}
+void DOSBOX_SAVEROM(bool pressed)
+{
+    if(!pressed) return;
+    UnmanagedWrapper::DOSBOX_SAVEROM();
+}
+void DOSBOX_VANGUARDABOUT(bool pressed)
+{
+    if(!pressed) return;
+    UnmanagedWrapper::DOSBOX_VANGUARDABOUT();
+}
+//---------------------------------------------------------
+
+
 void CAPTURE_MTWaveEvent(bool pressed) {
 	if (!pressed)
 		return;
@@ -1927,6 +1964,29 @@ void CAPTURE_Init() {
 
 	MAPPER_AddHandler(CAPTURE_VideoEvent,MK_i,MMODHOST,"video","Record video to AVI", &item);
 	item->set_text("Record video to AVI");
+
+
+
+
+    //RTC_Hijack : Build the vanguard menu
+    MAPPER_AddHandler(DOSBOX_LOADEXE, MK_nothing, 0, "vgloadexe", "Load and package from EXE", &item);
+    item->set_text("Load and package from EXE");
+
+    MAPPER_AddHandler(DOSBOX_LOADZIP, MK_nothing, 0, "vgloadzip", "Load and package from ZIP", &item);
+    item->set_text("Load and package from ZIP");
+
+    MAPPER_AddHandler(DOSBOX_LOADROM, MK_nothing, 0, "vgloadrom", "Load a driverom", &item);
+    item->set_text("Load a driverom");
+
+    MAPPER_AddHandler(DOSBOX_SAVEROM, MK_nothing, 0, "vgsaverom", "Save current driverom", &item);
+    item->set_text("Save current driverom");
+
+    MAPPER_AddHandler(DOSBOX_VANGUARDABOUT, MK_nothing, 0, "vgabout", "About and help", &item);
+    item->set_text("About and help");
+    //------------------------------------------------------------------------
+
+
+
 #endif
 #endif
 

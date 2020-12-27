@@ -105,6 +105,7 @@ static const char *def_menu__toplevel[] =
 #endif
     "DriveMenu",
     "HelpMenu",
+    "VanguardMenu", //RTC_Hijack : Vanguard menu
     NULL
 };
 
@@ -749,6 +750,20 @@ static const char *def_menu_help[] =
     "help_about",
     NULL
 };
+
+/* Vanguard menu ("VanguardMenu") */
+static const char* def_menu_vanguard[] =
+{
+    "mapper_vgloadexe",
+    "mapper_vgloadzip",
+    "--",
+    "mapper_vgloadrom",
+    "mapper_vgsaverom",
+    "--",
+    "mapper_vgabout",
+    NULL
+};
+
 
 void DOSBox_SetSysMenu(void);
 bool DOSBox_isMenuVisible(void) {
@@ -1565,6 +1580,10 @@ void ConstructMenu(void) {
     /* help debug menu */
     ConstructSubMenu(mainMenu.get_item("HelpDebugMenu").get_master_id(), def_menu_help_debug);
 #endif
+
+    //RTC_Hijack : Vanguard Menu
+    /* vanguard menu */
+    ConstructSubMenu(mainMenu.get_item("VanguardMenu").get_master_id(), def_menu_vanguard);
 }
 
 bool MENU_SetBool(std::string secname, std::string value) {

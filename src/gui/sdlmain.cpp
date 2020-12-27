@@ -12219,6 +12219,10 @@ int main(int argc, char* argv[]) SDL_MAIN_NOEXCEPT {
             }
         }
 
+        //RTC_Hijack : Vanguard menu
+        DOSBoxMenu::item& item = mainMenu.alloc_item(DOSBoxMenu::submenu_type_id, "VanguardMenu");
+        item.set_text("Vanguard");
+
         if (control->opt_startui)
             GUI_Run(false);
         if (control->opt_editconf.length() != 0)

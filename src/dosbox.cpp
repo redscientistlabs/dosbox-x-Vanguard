@@ -331,7 +331,10 @@ extern bool DOSBox_Paused();
 #define wrap_delay(a) SDL_Delay(a)
 
 static Bitu Normal_Loop(void) {
+
+    //RTC_Hijack : Core Step Hook
     UnmanagedWrapper::VANGUARD_CORESTEP();
+
     bool saved_allow = dosbox_allow_nonrecursive_page_fault;
     Bits ret;
 
