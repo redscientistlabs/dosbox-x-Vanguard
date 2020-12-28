@@ -698,7 +698,7 @@ void VanguardClientUnmanaged::LOAD_GAME_DONE() {
         gameDone->Set(VSPEC::SYSTEM, "MS-DOS");
         gameDone->Set(VSPEC::SYSTEMPREFIX, "MS-DOS");
         gameDone->Set(VSPEC::SYSTEMCORE, "DOSBox-X");
-        gameDone->Set(VSPEC::CORE_DISKBASED, true);
+        gameDone->Set(VSPEC::CORE_DISKBASED, false);
 
         String^ oldGame = AllSpec::VanguardSpec->Get<String^>(VSPEC::GAMENAME);
 
@@ -720,6 +720,7 @@ void VanguardClientUnmanaged::LOAD_GAME_DONE() {
             LocalNetCoreRouter::Route(Endpoints::UI,
                 Commands::Basic::ResetGameProtectionIfRunning, true);
         }
+        RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
     }
     catch(Exception^ e) {
         Trace::WriteLine(e->ToString());
