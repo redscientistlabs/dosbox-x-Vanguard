@@ -443,7 +443,7 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return (char)(phys_readb(addr));
+        return (char)(phys_readb(ptr));
     }
     else
     {
@@ -458,7 +458,7 @@ void RAM::PokeByte(long long addr, unsigned char val) {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        phys_writeb(addr, val);
+        phys_writeb(ptr, val);
     }
     else
     {
@@ -676,9 +676,9 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
     RefreshDomains();
     if(!VanguardClient::enableRTC)
         return;
-    //StepActions::ClearStepBlastUnits();
-    NetCore::Commands::Remote::ClearStepBlastUnits;
-    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
+
+    RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+
     RtcClock::ResetCount();
 
     String^ gameName = Helpers::utf8StringToSystemString(romPath);
@@ -688,8 +688,9 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
 
 
 void VanguardClientUnmanaged::LOAD_GAME_DONE() {
-    NetCore::Commands::Remote::ClearStepBlastUnits;
-    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
+
+    //RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+
     //This should make blast units go away when a program changes
     //Side effect: for games that use multiple exes, like Ultima 4, the blast units would go away when the game's exe switches to another one.
     if(!VanguardClient::enableRTC)
@@ -722,7 +723,9 @@ void VanguardClientUnmanaged::LOAD_GAME_DONE() {
             LocalNetCoreRouter::Route(Endpoints::UI,
                 Commands::Basic::ResetGameProtectionIfRunning, true);
         }
-        RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
+
+        //RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+
     }
     catch(Exception^ e) {
         Trace::WriteLine(e->ToString());
@@ -848,9 +851,9 @@ void VanguardClient::LoadRom(String^ filename) {
 
 
 bool VanguardClient::LoadState(std::string filename) {
-    //StepActions::ClearStepBlastUnits();
-    NetCore::Commands::Remote::ClearStepBlastUnits;
-    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
+
+    RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+
     //control->ParseConfigFile(Helpers::systemStringToUtf8String((Helpers::utf8StringToSystemString(filename) + ".conf")).c_str());
     
     RtcClock::ResetCount();
