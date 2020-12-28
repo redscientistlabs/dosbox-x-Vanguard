@@ -27,6 +27,7 @@
 #include "VanguardSettingsWrapper.h"
 #include <include/paging.h>
 #include <src\libs\tinyfiledialogs\tinyfiledialogs.h>
+#include <sdlmain.h>
 
 //#include "core/core.h"
 #using < system.dll>
@@ -101,6 +102,7 @@ public:
     static bool enableRTC = true;
     static System::String^ lastStateName = "";
     static System::String^ fileToCopy = "";
+    static bool DriveLoaded = false;
     //static Core::TimingEventType* event;
     
 };
@@ -909,6 +911,12 @@ void VanguardClientUnmanaged::SAVE_STATE_DONE() {
 
 void VanguardClientUnmanaged::DOSBOX_LOADEXE() {
 
+    if(VanguardClient::DriveLoaded)
+    {
+        MessageBox(GetHWND(), "Dosbox-x has to restart before a new drive is loaded", "Restarting Dosbox", MB_OK);
+        System::Environment::Exit(0);
+    }
+
         char CurrentDir[512];
         char* Temp_CurrentDir = CurrentDir;
         getcwd(Temp_CurrentDir, 512);
@@ -916,49 +924,114 @@ void VanguardClientUnmanaged::DOSBOX_LOADEXE() {
         const char* lFilterDescription = "Executable files (*.com, *.exe, *.bat)";
         char const* lTheOpenFileName = tinyfd_openFileDialog("Select an executable file to launch", "", 6, lFilterPatterns, lFilterDescription, 0);
 
+        if(lTheOpenFileName)
+        {
+            System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
+            System::IO::DirectoryInfo^ di = fi->Directory;
+            System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
+            System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
+
+            System::String^ romSessionPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
+
+            System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(romSessionPath);
+
+            //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
+            msclr::interop::marshal_context oMarshalContext;
+            const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
+
+            VanguardClientUnmanaged::LoadExecutable(autoexecPath);
+
+            VanguardClient::DriveLoaded = true;
+        }
+}
+
+void VanguardClientUnmanaged::DOSBOX_LOADROM() {
+
+    if(VanguardClient::DriveLoaded)
+    {
+        MessageBox(GetHWND(), "Dosbox-x has to restart before a new drive is loaded", "Restarting Dosbox", MB_OK);
+        System::Environment::Exit(0);
+    }
+
+    char CurrentDir[512];
+    char* Temp_CurrentDir = CurrentDir;
+    getcwd(Temp_CurrentDir, 512);
+    const char* lFilterPatterns[] = { "*.drive","*.drv","*.DRIVE","*.DRV" };
+    const char* lFilterDescription = "RTC Drive file (*.drive, *.drv)";
+    char const* lTheOpenFileName = tinyfd_openFileDialog("Select an RTC Drive file", "", 6, lFilterPatterns, lFilterDescription, 0);
+
+    if(lTheOpenFileName)
+    {
         System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
-        System::IO::DirectoryInfo^ di = fi->Directory;
-        System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
-        System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
-
-        System::String^ romSessionPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
-
-        System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(romSessionPath);
+        System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(fi->FullName);
 
         //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
         msclr::interop::marshal_context oMarshalContext;
         const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
 
         VanguardClientUnmanaged::LoadExecutable(autoexecPath);
-}
 
-void VanguardClientUnmanaged::DOSBOX_LOADROM() {
-
-    char CurrentDir[512];
-    char* Temp_CurrentDir = CurrentDir;
-    getcwd(Temp_CurrentDir, 512);
-    const char* lFilterPatterns[] = { "*.drive" };
-    const char* lFilterDescription = "RTC Drive files (*.drive)";
-    char const* lTheOpenFileName = tinyfd_openFileDialog("Select an executable file to launch", "", 6, lFilterPatterns, lFilterDescription, 0);
-
-    System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
-    System::IO::DirectoryInfo^ di = fi->Directory;
-    System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
-    System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
-
-    System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(di->FullName);
-
-    //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
-    msclr::interop::marshal_context oMarshalContext;
-    const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
-
-    VanguardClientUnmanaged::LoadExecutable(autoexecPath);
+        VanguardClient::DriveLoaded = true;
+    }
 }
 
 void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
 
-    RTCV::CorruptCore::Drive::SaveCurrentDriveAs();
+    if(VanguardClient::DriveLoaded)
+    {
+        MessageBox(GetHWND(), "Cannot generate a drive while a drive is loaded. Cancelling operation", "Error", MB_OK);
+        return;
+    }
 
+    System::String^ romSessionPath;
+
+    {
+
+        char CurrentDir[512];
+        char* Temp_CurrentDir = CurrentDir;
+        getcwd(Temp_CurrentDir, 512);
+        const char* lFilterPatterns[] = { "*.com","*.exe","*.bat","*.COM","*.EXE","*.BAT" };
+        const char* lFilterDescription = "Executable files (*.com, *.exe, *.bat)";
+        char const* lTheOpenFileName = tinyfd_openFileDialog("Select an executable file to launch", "", 6, lFilterPatterns, lFilterDescription, 0);
+
+
+
+        if(lTheOpenFileName)
+        {
+            System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
+            System::IO::DirectoryInfo^ di = fi->Directory;
+            System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
+            System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
+
+            romSessionPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
+
+            System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(romSessionPath);
+
+        }
+        else
+        {
+            return;
+        }
+
+
+
+    }
+
+
+    {
+        char CurrentDir[512];
+        char* Temp_CurrentDir = CurrentDir;
+        getcwd(Temp_CurrentDir, 512);
+        const char* lFilterPatterns[] = { "*.drv","*.drive","*.DRV","*.DRIVE" };
+        const char* lFilterDescription = "RTC Drive file (*.drv, *.drive)";
+        char const* lTheOpenFileName = tinyfd_saveFileDialog("Select a destination for drive file", "", 6, lFilterPatterns, lFilterDescription);
+
+        if(lTheOpenFileName)
+        {
+            System::String^ path = gcnew System::String(lTheOpenFileName);
+            RTCV::CorruptCore::Drive::SaveCurrentDriveAs(path);
+        }
+    }
 }
 
 

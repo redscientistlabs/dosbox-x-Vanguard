@@ -755,11 +755,9 @@ static const char *def_menu_help[] =
 static const char* def_menu_vanguard[] =
 {
     "mapper_vgloadexe",
-    "--",
     "mapper_vgloadrom",
+        "--",
     "mapper_vgsaverom",
-    "--",
-    "mapper_vgabout",
     NULL
 };
 

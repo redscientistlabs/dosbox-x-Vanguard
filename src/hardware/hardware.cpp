@@ -1964,8 +1964,8 @@ void CAPTURE_Init() {
     MAPPER_AddHandler(DOSBOX_LOADROM, MK_nothing, 0, "vgloadrom", "Load a Drive Container", &item);
     item->set_text("Load a Drive Container");
 
-    MAPPER_AddHandler(DOSBOX_SAVEROM, MK_nothing, 0, "vgsaverom", "Save Drive as..", &item);
-    item->set_text("Save Drive as..");
+    MAPPER_AddHandler(DOSBOX_SAVEROM, MK_nothing, 0, "vgsaverom", "Generate and Save Drive as..", &item);
+    item->set_text("Generate and Save Drive as..");
     //------------------------------------------------------------------------
 
 
