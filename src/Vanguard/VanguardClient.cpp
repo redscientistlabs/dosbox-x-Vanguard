@@ -458,7 +458,7 @@ void RAM::PokeByte(long long addr, unsigned char val) {
         //PageHandler* ph = MEM_GetPageHandler((Bitu)(addr >> 12));
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        phys_writeb(ptr, val);
+        phys_writeb(addr, val);
     }
     else
     {
@@ -677,7 +677,8 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
     if(!VanguardClient::enableRTC)
         return;
 
-    RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+    //StepActions::ClearStepBlastUnits();	
+    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
 
     RtcClock::ResetCount();
 
@@ -690,7 +691,7 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
 void VanguardClientUnmanaged::LOAD_GAME_DONE() {
 
     //RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
-
+    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
     //This should make blast units go away when a program changes
     //Side effect: for games that use multiple exes, like Ultima 4, the blast units would go away when the game's exe switches to another one.
     if(!VanguardClient::enableRTC)
@@ -725,6 +726,7 @@ void VanguardClientUnmanaged::LOAD_GAME_DONE() {
         }
 
         //RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+        RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
 
     }
     catch(Exception^ e) {
@@ -855,7 +857,8 @@ void VanguardClient::LoadRom(String^ filename) {
 
 bool VanguardClient::LoadState(std::string filename) {
 
-    RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+    //RTCV::CorruptCore::StepActions::ClearStepBlastUnits();
+    RTCV::NetCore::LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits, NULL, false);
 
     //control->ParseConfigFile(Helpers::systemStringToUtf8String((Helpers::utf8StringToSystemString(filename) + ".conf")).c_str());
     

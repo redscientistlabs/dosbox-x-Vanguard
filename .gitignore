@@ -396,4 +396,5 @@ vs2015/freetype/objs
 /vs2015/LOGCPU.TXT
 /out/build/x64-Debug (default)
 /vs2015/save
-*.bak
+/vs2015/dosbox-x.conf
+/vs2015/dosbox-x.conf.bak
