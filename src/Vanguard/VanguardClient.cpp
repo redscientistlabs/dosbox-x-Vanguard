@@ -842,7 +842,7 @@ void VanguardClient::LoadRom(String^ filename) {
 bool VanguardClient::LoadState(std::string filename) {
     //StepActions::ClearStepBlastUnits();
     NetCore::Commands::Remote::ClearStepBlastUnits;
-    control->ParseConfigFile(Helpers::systemStringToUtf8String((Helpers::utf8StringToSystemString(filename) + ".conf")).c_str());
+    //control->ParseConfigFile(Helpers::systemStringToUtf8String((Helpers::utf8StringToSystemString(filename) + ".conf")).c_str());
     
     RtcClock::ResetCount();
     stateLoading = true;
@@ -874,7 +874,7 @@ bool VanguardClient::SaveState(String^ filename, bool wait) {
     IO::FileInfo^ file = gcnew IO::FileInfo((filename)+".conf");
     if(file->Directory != nullptr && file->Directory->Exists == false)
         file->Directory->Create();
-    control->PrintConfig((Helpers::systemStringToUtf8String((filename)+".conf")).c_str());
+    //control->PrintConfig((Helpers::systemStringToUtf8String((filename)+".conf")).c_str());
     LOG_MSG("Savestate filename is %s", VanguardClient::fileToCopy);
     Thread::Sleep(2000);
     IO::File::Copy(VanguardClient::fileToCopy, filename);
