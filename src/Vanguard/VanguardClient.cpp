@@ -676,6 +676,7 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
         return;
     //StepActions::ClearStepBlastUnits();
     NetCore::Commands::Remote::ClearStepBlastUnits;
+    LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits);
     RtcClock::ResetCount();
 
     String^ gameName = Helpers::utf8StringToSystemString(romPath);
@@ -685,6 +686,10 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
 
 
 void VanguardClientUnmanaged::LOAD_GAME_DONE() {
+    NetCore::Commands::Remote::ClearStepBlastUnits;
+    LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits);
+    //This should make blast units go away when a program changes
+    //Side effect: for games that use multiple exes, like Ultima 4, the blast units would go away when the game's exe switches to another one.
     if(!VanguardClient::enableRTC)
         return;
     PartialSpec^ gameDone = gcnew PartialSpec("VanguardSpec");
@@ -842,6 +847,7 @@ void VanguardClient::LoadRom(String^ filename) {
 bool VanguardClient::LoadState(std::string filename) {
     //StepActions::ClearStepBlastUnits();
     NetCore::Commands::Remote::ClearStepBlastUnits;
+    LocalNetCoreRouter::Route(Endpoints::CorruptCore, NetCore::Commands::Remote::ClearStepBlastUnits);
     //control->ParseConfigFile(Helpers::systemStringToUtf8String((Helpers::utf8StringToSystemString(filename) + ".conf")).c_str());
     
     RtcClock::ResetCount();
