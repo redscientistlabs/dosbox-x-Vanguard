@@ -443,7 +443,7 @@ unsigned char RAM::PeekByte(long long addr) {
     {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
-        return (char)(phys_readb(ptr));
+        return (char)(phys_readb(addr));
     }
     else
     {
@@ -683,7 +683,7 @@ void VanguardClientUnmanaged::LOAD_GAME_START(std::string romPath) {
 
     String^ gameName = Helpers::utf8StringToSystemString(romPath);
     LOG_MSG("Loaded %s", gameName);
-    AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, gameName, true, true);
+    //AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, gameName, true, true);
 }
 
 
@@ -834,6 +834,9 @@ void VanguardClient::LoadRom(String^ filename) {
 
     // Game is not running
     if(currentOpenRom != filename) {
+        PartialSpec^ partial = gcnew PartialSpec("VanguardSpec");
+        partial->Set(VSPEC::OPENROMFILENAME, filename);
+        AllSpec::VanguardSpec->Update(partial, true, false);
         std::string path = Helpers::systemStringToUtf8String(filename);
         loading = true;
         UnmanagedWrapper::VANGUARD_LOADGAME(path);
@@ -845,7 +848,7 @@ void VanguardClient::LoadRom(String^ filename) {
             System::Windows::Forms::Application::DoEvents();
         }
 
-        Thread::Sleep(10); // Give the emu thread a chance to recover
+        //Thread::Sleep(10); // Give the emu thread a chance to recover
     }
 }
 
@@ -942,9 +945,10 @@ void VanguardClientUnmanaged::DOSBOX_LOADEXE() {
             msclr::interop::marshal_context oMarshalContext;
             const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
 
-            VanguardClientUnmanaged::LoadExecutable(autoexecPath);
-
             VanguardClient::DriveLoaded = true;
+            VanguardClient::LoadRom(romSessionPath);
+
+            VanguardClientUnmanaged::LoadExecutable(autoexecPath);
         }
 }
 
@@ -977,26 +981,20 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM(char const* lTheOpenFileName) {
         System::Environment::Exit(0);
     }
 
-    char CurrentDir[512];
-    char* Temp_CurrentDir = CurrentDir;
-    getcwd(Temp_CurrentDir, 512);
-    const char* lFilterPatterns[] = { "*.drive","*.drv","*.DRIVE","*.DRV" };
-    const char* lFilterDescription = "RTC Drive file (*.drive, *.drv)";
-    char const* lTheOpenFileName2 = tinyfd_openFileDialog("Select an RTC Drive file", "", 6, lFilterPatterns, lFilterDescription, 0);
-
-    if(lTheOpenFileName2)
-    {
-        System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName2));
+        System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
         System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(fi->FullName);
 
         //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
         msclr::interop::marshal_context oMarshalContext;
         const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
 
+        VanguardClient::LoadRom(fi->FullName);
+        VanguardClient::DriveLoaded = true;
+
         VanguardClientUnmanaged::LoadExecutable(autoexecPath);
 
-        VanguardClient::DriveLoaded = true;
-    }
+        
+ 
 }
 
 void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
@@ -1139,8 +1137,22 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
 
     case REMOTE_LOADROM: {
         String^ filename = (String^)advancedMessage->objectValue;
-        System::Action<String^>^ a = gcnew Action<String^>(&LoadRom);
-        SyncObjectSingleton::FormExecute<String^>(a, filename);
+
+        //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
+        msclr::interop::marshal_context oMarshalContext;
+        const char* filenamePath = oMarshalContext.marshal_as<const char*>(filename);
+
+        String^ currentOpenRom = "";
+        if(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME) != "")
+            currentOpenRom = AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME);
+
+        // Game is not running
+        if(currentOpenRom != filename) {
+            //System::Action<const char*>^ a = gcnew Action<const char*>(VanguardClientUnmanaged::DOSBOX_LOADROM);
+            //SyncObjectSingleton::FormExecute<const char*>(a, filenamePath);
+
+            VanguardClientUnmanaged::DOSBOX_LOADROM(filenamePath);
+        }
     }
                        break;
 
