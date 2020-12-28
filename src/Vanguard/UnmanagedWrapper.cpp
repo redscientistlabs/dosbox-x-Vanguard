@@ -18,6 +18,7 @@
 #include "src/debug/disasm_tables.h"
 #include "paging.h"
 #include <src/hardware/mame/emu.h>
+#include <src\libs\tinyfiledialogs\tinyfiledialogs.h>
 //#include <src/dos/dos_execute.cpp>
 
 //C++/CLI has various restrictions (no std::mutex for example), so we can't actually include certain headers directly
@@ -194,23 +195,13 @@ void UnmanagedWrapper::SetSettingsFromUnmanagedWrapper() {
 
 
 void UnmanagedWrapper::DOSBOX_LOADEXE() {
-    System::Environment::Exit(0);
-    return;
-}
-void UnmanagedWrapper::DOSBOX_LOADZIP() {
-    System::Environment::Exit(0);
-    return;
+    VanguardClientUnmanaged::DOSBOX_LOADEXE();
 }
 void UnmanagedWrapper::DOSBOX_LOADROM() {
-    System::Environment::Exit(0);
-    return;
+    VanguardClientUnmanaged::DOSBOX_LOADROM();
 }
 void UnmanagedWrapper::DOSBOX_SAVEROM() {
-    System::Environment::Exit(0);
-    return;
+    VanguardClientUnmanaged::DOSBOX_SAVEROM();
 }
-void UnmanagedWrapper::DOSBOX_VANGUARDABOUT() {
-    System::Environment::Exit(0);
-    return;
-}
+
 

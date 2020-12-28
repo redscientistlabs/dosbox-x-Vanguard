@@ -26,6 +26,7 @@
 #include <src/hardware/mame/emu.h>
 #include "VanguardSettingsWrapper.h"
 #include <include/paging.h>
+#include <src\libs\tinyfiledialogs\tinyfiledialogs.h>
 
 //#include "core/core.h"
 #using < system.dll>
@@ -837,6 +838,7 @@ void VanguardClient::LoadRom(String^ filename) {
     }
 }
 
+
 bool VanguardClient::LoadState(std::string filename) {
     //StepActions::ClearStepBlastUnits();
     NetCore::Commands::Remote::ClearStepBlastUnits;
@@ -897,6 +899,49 @@ void VanguardClientUnmanaged::SAVE_STATE_DONE() {
         StringExtensions::MakeSafeFilename(gameName, replaceChar));
     AllSpec::VanguardSpec->Update(gameDone, true, false);
 }
+
+void VanguardClientUnmanaged::DOSBOX_LOADEXE() {
+
+        char CurrentDir[512];
+        char* Temp_CurrentDir = CurrentDir;
+        getcwd(Temp_CurrentDir, 512);
+        const char* lFilterPatterns[] = { "*.com","*.exe","*.bat","*.COM","*.EXE","*.BAT" };
+        const char* lFilterDescription = "Executable files (*.com, *.exe, *.bat)";
+        char const* lTheOpenFileName = tinyfd_openFileDialog("Select an executable file to launch", "", 6, lFilterPatterns, lFilterDescription, 0);
+
+        System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
+        System::IO::DirectoryInfo^ di = fi->Directory;
+        System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
+        System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
+
+        System::String^ romPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
+
+}
+
+void VanguardClientUnmanaged::DOSBOX_LOADROM() {
+
+    char CurrentDir[512];
+    char* Temp_CurrentDir = CurrentDir;
+    getcwd(Temp_CurrentDir, 512);
+    const char* lFilterPatterns[] = { "*.drive" };
+    const char* lFilterDescription = "RTC Drive files (*.drive)";
+    char const* lTheOpenFileName = tinyfd_openFileDialog("Select an executable file to launch", "", 6, lFilterPatterns, lFilterDescription, 0);
+
+    System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
+    System::IO::DirectoryInfo^ di = fi->Directory;
+    System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
+    System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
+
+    System::String^ romPath = RTCV::CorruptCore::Drive::UnpackageDrive(di->FullName);
+
+}
+
+void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
+
+    
+
+}
+
 
 // No fun anonymous classes with closure here
 #pragma region Delegates
