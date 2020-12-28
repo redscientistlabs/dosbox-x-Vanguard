@@ -1688,12 +1688,6 @@ void DOSBOX_LOADEXE(bool pressed)
     UnmanagedWrapper::DOSBOX_LOADEXE();
 }
 
-void DOSBOX_LOADZIP(bool pressed)
-{
-    if(!pressed) return;
-    UnmanagedWrapper::DOSBOX_LOADZIP();
-}
-
 void DOSBOX_LOADROM(bool pressed)
 {
     if(!pressed) return;
@@ -1703,11 +1697,6 @@ void DOSBOX_SAVEROM(bool pressed)
 {
     if(!pressed) return;
     UnmanagedWrapper::DOSBOX_SAVEROM();
-}
-void DOSBOX_VANGUARDABOUT(bool pressed)
-{
-    if(!pressed) return;
-    UnmanagedWrapper::DOSBOX_VANGUARDABOUT();
 }
 //---------------------------------------------------------
 
@@ -1969,20 +1958,14 @@ void CAPTURE_Init() {
 
 
     //RTC_Hijack : Build the vanguard menu
-    MAPPER_AddHandler(DOSBOX_LOADEXE, MK_nothing, 0, "vgloadexe", "Load and package from EXE", &item);
-    item->set_text("Load and package from EXE");
+    MAPPER_AddHandler(DOSBOX_LOADEXE, MK_nothing, 0, "vgloadexe", "Generate/Load Drive from DOS Executable", &item);
+    item->set_text("Generate/Load Drive from DOS Executable");
 
-    MAPPER_AddHandler(DOSBOX_LOADZIP, MK_nothing, 0, "vgloadzip", "Load and package from ZIP", &item);
-    item->set_text("Load and package from ZIP");
+    MAPPER_AddHandler(DOSBOX_LOADROM, MK_nothing, 0, "vgloadrom", "Load a Drive Container", &item);
+    item->set_text("Load a Drive Container");
 
-    MAPPER_AddHandler(DOSBOX_LOADROM, MK_nothing, 0, "vgloadrom", "Load a driverom", &item);
-    item->set_text("Load a driverom");
-
-    MAPPER_AddHandler(DOSBOX_SAVEROM, MK_nothing, 0, "vgsaverom", "Save current driverom", &item);
-    item->set_text("Save current driverom");
-
-    MAPPER_AddHandler(DOSBOX_VANGUARDABOUT, MK_nothing, 0, "vgabout", "About and help", &item);
-    item->set_text("About and help");
+    MAPPER_AddHandler(DOSBOX_SAVEROM, MK_nothing, 0, "vgsaverom", "Save Drive as..", &item);
+    item->set_text("Save Drive as..");
     //------------------------------------------------------------------------
 
 

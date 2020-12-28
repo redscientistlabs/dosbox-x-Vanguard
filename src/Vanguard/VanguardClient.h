@@ -14,4 +14,7 @@ public:
     static void InvokeEmuThread();
     static bool RTC_OSD_ENABLED();
     static void SAVE_STATE_DONE();
+    static void DOSBOX_LOADEXE();
+    static void DOSBOX_LOADROM();
+    static void DOSBOX_SAVEROM();
 };
