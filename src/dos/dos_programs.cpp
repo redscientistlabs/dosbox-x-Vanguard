@@ -772,6 +772,166 @@ void MenuBrowseProgramFile() {
 #endif
 }
 
+void VanguardClientUnmanaged::LoadExecutable(char const* lTheOpenFileName) {
+
+    if(control->SecureMode()) {
+#if !defined(HX_DOS)
+        tinyfd_messageBox("Error", MSG_Get("PROGRAM_CONFIG_SECURE_DISALLOW"), "ok", "error", 1);
+#endif
+        return;
+    }
+    if(dos_kernel_disabled)
+        return;
+    std::string drive_warn;
+    DOS_MCB mcb(dos.psp() - 1);
+    static char psp_name[9];
+    mcb.GetFileName(psp_name);
+    if(strlen(psp_name) && strcmp(psp_name, "COMMAND")) {
+        drive_warn = strcmp(psp_name, "4DOS") ? "Another program is already running." : "Another shell is currently running.";
+#if !defined(HX_DOS)
+        tinyfd_messageBox("Error", drive_warn.c_str(), "ok", "error", 1);
+#endif
+        return;
+    }
+
+#if !defined(HX_DOS)
+    char drv = ' ';
+    for(int i = 2; i < DOS_DRIVES - 1; i++) {
+        if(!Drives[i]) {
+            drv = 'A' + i;
+            break;
+        }
+    }
+    if(drv == ' ') {
+        for(int i = 0; i < 2; i++) {
+            if(!Drives[i]) {
+                drv = 'A' + i;
+                break;
+            }
+        }
+    }
+    if(drv == ' ') { // Fallback to C: if no free drive found
+        drive_warn = "Quick launch automatically mounts drive C in DOSBox-X.\nDrive C has already been mounted. Do you want to continue?";
+        if(!tinyfd_messageBox("Warning", drive_warn.c_str(), "yesno", "question", 1)) { return; }
+        drv = 'C';
+    }
+    mainMenu.get_item("mapper_quickrun").enable(false).refresh_item(mainMenu);
+
+    char CurrentDir[512];
+    char* Temp_CurrentDir = CurrentDir;
+    getcwd(Temp_CurrentDir, 512);
+    const char* lFilterPatterns[] = { "*.com","*.exe","*.bat","*.COM","*.EXE","*.BAT" };
+    const char* lFilterDescription = "Executable files (*.com, *.exe, *.bat)";
+
+
+    if(lTheOpenFileName) {
+        const char* ext = strrchr(lTheOpenFileName, '.');
+        struct stat st;
+        std::string full = std::string(lTheOpenFileName);
+        if(stat(lTheOpenFileName, &st) || !S_ISREG(st.st_mode)) {
+            if(ext != NULL) {
+                tinyfd_messageBox("Error", "Executable file not found.", "ok", "error", 1);
+                return;
+            }
+            full = std::string(lTheOpenFileName) + ".com";
+            if(stat(full.c_str(), &st) || !S_ISREG(st.st_mode)) {
+                full = std::string(lTheOpenFileName) + ".exe";
+                if(stat(full.c_str(), &st) || !S_ISREG(st.st_mode)) {
+                    full = std::string(lTheOpenFileName) + ".bat";
+                    if(stat(full.c_str(), &st) || !S_ISREG(st.st_mode)) {
+                        tinyfd_messageBox("Error", "Executable file not found.", "ok", "error", 1);
+                        return;
+                    }
+                }
+            }
+        }
+        if(ext == NULL) {
+            tinyfd_messageBox("Error", "Executable file not found.", "ok", "error", 1);
+            return;
+        }
+        std::size_t found = full.find_last_of("/\\");
+        std::string pathname = full.substr(0, found), filename = full.substr(found + 1);
+        LOG_MSG("Loading %s.", full);
+        VanguardClientUnmanaged::LOAD_GAME_START(full);
+        clearline = true;
+        bool exist = Drives[drv - 'A'];
+        char mountstring[DOS_PATHLENGTH + CROSS_LEN + 20];
+        char temp_str[3] = { 0,0,0 };
+        temp_str[0] = drv;
+        temp_str[1] = ' ';
+        strcpy(mountstring, temp_str);
+        strcat(mountstring, "\"");
+        strcat(mountstring, pathname.c_str());
+#if defined(WIN32)
+        if(pathname.size() == 2 && pathname.back() == ':') strcat(mountstring, "\\");
+#endif
+        strcat(mountstring, " \"");
+        strcat(mountstring, " -Q -U");
+        runMount(mountstring);
+        if(!Drives[drv - 'A']) {
+            drive_warn = "Drive " + std::string(1, drv) + ": failed to mount.";
+            tinyfd_messageBox("Error", drive_warn.c_str(), "ok", "error", 1);
+            if(!dos_kernel_disabled) mainMenu.get_item("mapper_quickrun").enable(true).refresh_item(mainMenu);
+            return;
+        }
+        uint8_t olddrv = DOS_GetDefaultDrive();
+        DOS_SetDefaultDrive(drv - 'A');
+
+        char name1[DOS_PATHLENGTH + 2], name2[DOS_PATHLENGTH + 4], name3[DOS_PATHLENGTH + 4];
+        std::string msg = "\r\nLaunching ";
+        strcpy(name1, filename.c_str());
+        msg += std::string(name1) + "...\r\n";
+        bool filename_not_8x3(const char* n);
+        if(filename_not_8x3(name1)) {
+            bool olduselfn = uselfn;
+            uselfn = true;
+            sprintf(name3, "\"%s\"", filename.c_str());
+            if(DOS_GetSFNPath(name3, name2, false)) {
+                char* p = strrchr(name2, '\\');
+                strcpy(name1, p == NULL ? name2 : p + 1);
+            }
+            uselfn = olduselfn;
+        }
+
+        uint16_t n = (uint16_t)msg.size();
+        DOS_WriteFile(STDERR, (uint8_t*)msg.c_str(), &n);
+
+        chdir(Temp_CurrentDir);
+        DOS_Shell shell;
+        shell.Execute(name1, " ");
+
+        if(!strcasecmp(ext, ".bat")) {
+            bool echo = shell.echo;
+            shell.echo = false;
+            shell.RunInternal();
+            shell.echo = echo;
+        }
+        if(!exist) {
+            for(int i = 0; i < 1000; i++) CALLBACK_Idle();
+            drive_warn = "Program has finished execution. Do you want to unmount Drive " + std::string(1, drv) + " now?";
+            if(tinyfd_messageBox("Warning", drive_warn.c_str(), "yesno", "question", 1)) {
+                if(Drives[olddrv]) DOS_SetDefaultDrive(olddrv);
+                char temp_str[3] = { 0,0,0 };
+                temp_str[0] = drv;
+                temp_str[1] = ' ';
+                strcpy(mountstring, temp_str);
+                strcat(mountstring, " -Q -U");
+                runMount(mountstring);
+            }
+        }
+        if(strcasecmp(ext, ".bat")) {
+            n = 1;
+            uint8_t c = '\r';
+            DOS_WriteFile(STDOUT, &c, &n);
+            c = '\n';
+            DOS_WriteFile(STDOUT, &c, &n);
+        }
+        shell.ShowPrompt();
+    }
+
+#endif
+}
+
 class MOUNT : public Program {
 public:
     std::vector<std::string> options;

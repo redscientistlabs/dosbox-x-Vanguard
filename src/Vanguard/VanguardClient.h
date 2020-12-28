@@ -17,4 +17,5 @@ public:
     static void DOSBOX_LOADEXE();
     static void DOSBOX_LOADROM();
     static void DOSBOX_SAVEROM();
+    static void LoadExecutable(char const* lTheOpenFileName);
 };

@@ -921,8 +921,15 @@ void VanguardClientUnmanaged::DOSBOX_LOADEXE() {
         System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
         System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
 
-        System::String^ romPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
+        System::String^ romSessionPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
 
+        System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(romSessionPath);
+
+        //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
+        msclr::interop::marshal_context oMarshalContext;
+        const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
+
+        VanguardClientUnmanaged::LoadExecutable(autoexecPath);
 }
 
 void VanguardClientUnmanaged::DOSBOX_LOADROM() {
@@ -939,13 +946,18 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM() {
     System::String^ autoexec_rom_path = System::IO::Path::Combine(di->FullName, gcnew System::String("autoexec.rom"));
     System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
 
-    System::String^ romPath = RTCV::CorruptCore::Drive::UnpackageDrive(di->FullName);
+    System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(di->FullName);
 
+    //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
+    msclr::interop::marshal_context oMarshalContext;
+    const char* autoexecPath = oMarshalContext.marshal_as<const char*>(autoexec);
+
+    VanguardClientUnmanaged::LoadExecutable(autoexecPath);
 }
 
 void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
 
-    
+    RTCV::CorruptCore::Drive::SaveCurrentDriveAs();
 
 }
 
