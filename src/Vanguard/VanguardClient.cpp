@@ -962,7 +962,28 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM() {
 
     if(lTheOpenFileName)
     {
-        System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
+        DOSBOX_LOADROM(lTheOpenFileName);
+    }
+}
+
+void VanguardClientUnmanaged::DOSBOX_LOADROM(char const* lTheOpenFileName) {
+
+    if(VanguardClient::DriveLoaded)
+    {
+        MessageBox(GetHWND(), "Dosbox-x has to restart before a new drive is loaded", "Restarting Dosbox", MB_OK);
+        System::Environment::Exit(0);
+    }
+
+    char CurrentDir[512];
+    char* Temp_CurrentDir = CurrentDir;
+    getcwd(Temp_CurrentDir, 512);
+    const char* lFilterPatterns[] = { "*.drive","*.drv","*.DRIVE","*.DRV" };
+    const char* lFilterDescription = "RTC Drive file (*.drive, *.drv)";
+    char const* lTheOpenFileName2 = tinyfd_openFileDialog("Select an RTC Drive file", "", 6, lFilterPatterns, lFilterDescription, 0);
+
+    if(lTheOpenFileName2)
+    {
+        System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName2));
         System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(fi->FullName);
 
         //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
