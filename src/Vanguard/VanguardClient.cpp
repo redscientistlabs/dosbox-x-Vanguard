@@ -510,7 +510,7 @@ unsigned char VRAM::PeekByte(long long addr) {
         PhysPt ptr;
         ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));
         */ //there is a vga pagehandler but it's not in vga.h and if I include the cpp it's defined in hell breaks loose
-        return 0;
+        return VGARTCHijack::readVGAbyte(addr);
     }
     else
     {
@@ -522,6 +522,7 @@ unsigned char VRAM::PeekByte(long long addr) {
 void VRAM::PokeByte(long long addr, unsigned char val) {/*
     PhysPt ptr;
     ptr = PAGING_GetPhysicalAddress((PhysPt)(static_cast<u32>(addr)));*/
+    VGARTCHijack::writeVGAbyte(addr, val);
 }
 
 cli::array<unsigned char>^ VRAM::PeekBytes(long long address, int length) {
@@ -604,9 +605,9 @@ static cli::array<MemoryDomainProxy^>^ GetInterfaces() {
 
     if(String::IsNullOrWhiteSpace(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME)))
         return gcnew cli::array<MemoryDomainProxy^>(0);
-    cli::array<MemoryDomainProxy^>^ interfaces = gcnew cli::array<MemoryDomainProxy^>(1);
+    cli::array<MemoryDomainProxy^>^ interfaces = gcnew cli::array<MemoryDomainProxy^>(2);
     interfaces[0] = (gcnew MemoryDomainProxy(gcnew RAM));
-    //interfaces[1] = (gcnew MemoryDomainProxy(gcnew VRAM));
+    interfaces[1] = (gcnew MemoryDomainProxy(gcnew VRAM));
     return interfaces;
 }
 

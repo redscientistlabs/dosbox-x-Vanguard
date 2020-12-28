@@ -490,7 +490,23 @@ public:
 		writeHandler8( addr+3, (uint8_t)(val >> 24u) );
 	}
 };
-
+//RTC_hijack: make custom functions that expose the VRAM pages
+uint8_t VGARTCHijack::readVGAbyte(PhysPt addr)
+{
+    VGAMEM_USEC_read_delay();/*
+    addr = PAGING_GetPhysicalAddress(addr) & vgapages.mask;
+    addr += (PhysPt)vga.svga.bank_read_full;*/
+    //		addr = CHECKED2(addr);
+    return (uint8_t)VGA_Generic_Read_Handler(addr, addr, vga.config.read_map_select);
+}
+void VGARTCHijack::writeVGAbyte(PhysPt addr, uint8_t val)
+{
+    VGAMEM_USEC_write_delay();/*
+    addr = PAGING_GetPhysicalAddress(addr) & vgapages.mask;
+    addr += (PhysPt)vga.svga.bank_write_full;*/
+    //		addr = CHECKED2(addr);
+    VGA_Generic_Write_Handler<false/*chained*/>(addr, addr, val);
+}
 class VGA_UnchainedVGA_Handler : public PageHandler {
 public:
 	Bitu readHandler(PhysPt start) {

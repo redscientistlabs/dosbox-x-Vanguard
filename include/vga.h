@@ -24,6 +24,7 @@
 #include "dosbox.h"
 #endif
 #include <iostream>
+#include <mem.h>
 
 #define VGA_LFB_MAPPED
 
@@ -31,6 +32,13 @@
 
 class PageHandler;
 
+class VGARTCHijack
+{
+public:
+    //RTC_Hijack: put functions in vga.h to call readb and writeb
+     static uint8_t readVGAbyte(PhysPt addr);
+     static void writeVGAbyte(PhysPt addr, uint8_t val);
+};
 enum VGAModes {
     M_CGA2,         // 0
     M_CGA4,
