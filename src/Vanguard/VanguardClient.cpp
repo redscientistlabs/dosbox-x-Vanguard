@@ -493,7 +493,7 @@ long long VRAM::Size::get() {
     vmemsizekb = (vmemsizekb + 3ul) & (~3ul);
 
     /* roll memsize into memsizekb, simplify this code */
-    return (vmemsizekb / 1024 + vmemsize) * 1024ul * 1024ul;
+    return (((vmemsizekb / 1024 + vmemsize)) * 1024ul * 1024ul/8);
 }
 
 int VRAM::WordSize::get() {
