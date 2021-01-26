@@ -5,12 +5,20 @@ jobs:
   dosbox-x:
     runs-on: windows-2019
     steps:
-    - name: Checkout repository
+    - name: Checkout build target
       uses: actions/checkout@v2
+      with:
+        path: 'dosbox-x-vanguard'
+
+    - name: Checkout RTCV
+      uses: actions/checkout@v2
+      with:
+        path: 'RTCV'
+        refspec: '506'
 
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@v1.0.2
 
     - name: Build dosbox-x
       shell: powershell
-      run: msbuild vs2015/dosbox-x.sln /property:Platform=x64 # "AnyCPU" isn't valid for some dosbox-x projects
+      run: msbuild dosbox-x-vanguard/vs2015/dosbox-x.sln /property:Platform=x64 # "AnyCPU" isn't valid for some dosbox-x projects
