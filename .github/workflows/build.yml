@@ -5,6 +5,9 @@ jobs:
   dosbox-x:
     runs-on: windows-2019
     steps:
+    - name: Setup MSBuild.exe
+      uses: microsoft/setup-msbuild@v1.0.2
+
     - name: Checkout build target
       uses: actions/checkout@v2
       with:
@@ -16,9 +19,8 @@ jobs:
         repository: 'redscientistlabs/RTCV'
         ref: '506'
         path: 'RTCV'
-
-    - name: Setup MSBuild.exe
-      uses: microsoft/setup-msbuild@v1.0.2
+    - name: Restore packages in RTCV
+      run: msbuild /t:restore '.\RTCV\'
 
     - name: Build dosbox-x
       shell: powershell
