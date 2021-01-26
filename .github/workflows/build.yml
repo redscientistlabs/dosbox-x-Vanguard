@@ -10,11 +10,12 @@ jobs:
       with:
         path: 'dosbox-x-vanguard'
 
-    - name: Checkout RTCV
+    - name: Checkout RTCV peer dependency
       uses: actions/checkout@v2
       with:
-        path: 'RTCV'
+        repository: 'redscientistlabs/RTCV'
         ref: '506'
+        path: 'RTCV'
 
     - name: Setup MSBuild.exe
       uses: microsoft/setup-msbuild@v1.0.2
