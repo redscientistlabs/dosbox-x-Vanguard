@@ -772,8 +772,12 @@ void MenuBrowseProgramFile() {
 #endif
 }
 
-void VanguardClientUnmanaged::LoadExecutable(char const* lTheOpenFileName) {
+//RTC_Hijack : Menu-less executable start
 
+//This is an amalgamation of code from MenuBrowseProgramFile that
+//automates the opening of an executable without user interaction
+void VanguardClientUnmanaged::LoadExecutable(char const* lTheOpenFileName) {
+    //Code Lifted from MenuBrowseProgramFile() start
     if(control->SecureMode()) {
 #if !defined(HX_DOS)
         tinyfd_messageBox("Error", MSG_Get("PROGRAM_CONFIG_SECURE_DISALLOW"), "ok", "error", 1);
