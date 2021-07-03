@@ -70,7 +70,6 @@ public:
     static NetCoreReceiver^ receiver;
     static VanguardConnector^ connector;
 
-    static void UnmanagedLoadRom(String^ filename);
     static void OnMessageReceived(Object^ sender, NetCoreEventArgs^ e);
     static void SpecUpdated(Object^ sender, SpecUpdateEventArgs^ e);
     static void RegisterVanguardSpec();
@@ -833,7 +832,7 @@ inline COMMANDS CheckCommand(String^ inString) {
 /* IMPLEMENT YOUR COMMANDS HERE */
 void VanguardClient::LoadRom(String^ filename) {
     String^ currentOpenRom = "";
-    if(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME) != "IGNORE")
+    if(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME) != "")
         currentOpenRom = AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME);
 
     // Game is not running
@@ -988,7 +987,6 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM(char const* lTheOpenFileName) {
 
         System::IO::FileInfo^ fi = gcnew System::IO::FileInfo(gcnew System::String(lTheOpenFileName));
         System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(fi->FullName);
-        AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, fi->FullName, true, true);
 
         //thx https://stackoverflow.com/questions/2093331/converting-systemstring-to-const-char
         msclr::interop::marshal_context oMarshalContext;
@@ -998,6 +996,7 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM(char const* lTheOpenFileName) {
         VanguardClient::DriveLoaded = true;
 
         VanguardClientUnmanaged::LoadExecutable(autoexecPath);
+
         
  
 }
@@ -1031,7 +1030,7 @@ void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
             System::IO::File::WriteAllText(autoexec_rom_path, fi->Name);
 
             romSessionPath = RTCV::CorruptCore::Drive::PackageDrive(di->FullName);
-            AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, romSessionPath, true, true);
+
             System::String^ autoexec = RTCV::CorruptCore::Drive::UnpackageDrive(romSessionPath);
 
         }
@@ -1057,7 +1056,6 @@ void VanguardClientUnmanaged::DOSBOX_SAVEROM() {
         {
             System::String^ path = gcnew System::String(lTheOpenFileName);
             RTCV::CorruptCore::Drive::SaveCurrentDriveAs(path);
-            AllSpec::VanguardSpec->Update(VSPEC::OPENROMFILENAME, path, true, true);
         }
     }
 }
@@ -1079,12 +1077,6 @@ void AllSpecsSent() {
 }
 #pragma endregion
 
-void VanguardClient::UnmanagedLoadRom(String^ filename)
-{
-    std::string path = Helpers::systemStringToUtf8String(filename);
-    VanguardClientUnmanaged::DOSBOX_LOADROM(path.c_str());
-
-}
 /* THIS IS WHERE YOU HANDLE ANY RECEIVED MESSAGES */
 void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
     NetCoreMessage^ message = e->message;
@@ -1155,15 +1147,15 @@ void VanguardClient::OnMessageReceived(Object^ sender, NetCoreEventArgs^ e) {
         const char* filenamePath = oMarshalContext.marshal_as<const char*>(filename);
 
         String^ currentOpenRom = "";
-        if(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME) != "IGNORE")
+        if(AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME) != "")
             currentOpenRom = AllSpec::VanguardSpec->Get<String^>(VSPEC::OPENROMFILENAME);
 
         // Game is not running
         if(currentOpenRom != filename) {
-            System::Action<String^>^ a = gcnew Action<String^>(&VanguardClient::UnmanagedLoadRom);
-            SyncObjectSingleton::FormExecute<String^>(a, filename);
+            //System::Action<const char*>^ a = gcnew Action<const char*>(VanguardClientUnmanaged::DOSBOX_LOADROM);
+            //SyncObjectSingleton::FormExecute<const char*>(a, filenamePath);
 
-            VanguardClient::UnmanagedLoadRom(filename);
+            VanguardClientUnmanaged::DOSBOX_LOADROM(filenamePath);
         }
     }
                        break;
