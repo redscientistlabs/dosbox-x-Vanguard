@@ -847,10 +847,10 @@ void VanguardClient::LoadRom(String^ filename) {
         RefreshDomains();
         // We have to do it this way to prevent deadlock due to synced calls. It sucks but it's
         // required at the moment
-        while(loading) {
+        /*while(loading) {
             Thread::Sleep(20);
             System::Windows::Forms::Application::DoEvents();
-        }
+        }*/
 
         //Thread::Sleep(10); // Give the emu thread a chance to recover
     }
@@ -970,7 +970,7 @@ void VanguardClientUnmanaged::DOSBOX_LOADROM() {
     getcwd(Temp_CurrentDir, 512);
     const char* lFilterPatterns[] = { "*.drive","*.drv","*.DRIVE","*.DRV" };
     const char* lFilterDescription = "RTC Drive file (*.drive, *.drv)";
-    char const* lTheOpenFileName = tinyfd_openFileDialog("Select an RTC Drive file", "", 6, lFilterPatterns, lFilterDescription, 0);
+    char const* lTheOpenFileName = tinyfd_openFileDialog("Select an RTC Drive file", "", 4, lFilterPatterns, lFilterDescription, 0);
 
     if(lTheOpenFileName)
     {
